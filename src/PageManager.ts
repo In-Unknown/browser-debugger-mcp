@@ -252,12 +252,10 @@ export class PageManager {
     context.pages().forEach(registerPage);
 
     context.on('page', (page) => {
-      setTimeout(() => {
-        registerPage(page);
-        if (browserType === 'edge' && (page.url().includes('onboarding') || page.url().includes('welcome'))) {
-          setTimeout(() => page.close().catch(()=>{}), 500);
-        }
-      }, 100);
+      registerPage(page);
+      if (browserType === 'edge' && (page.url().includes('onboarding') || page.url().includes('welcome'))) {
+        setTimeout(() => page.close().catch(()=>{}), 500);
+      }
     });
   }
 
@@ -316,8 +314,14 @@ export class PageManager {
       page = await context.newPage();
     }
 
-    const id = Array.from(this.pages.entries()).find(([_, info]) => info.page === page)?.[0] || 'unknown';
+    const existingId = Array.from(this.pages.entries()).find(([_, info]) => info.page === page)?.[0];
+    if (existingId) {
+      this.pages.delete(existingId);
+    }
+
+    const id = this.generateId();
     const openedAt = Date.now();
+    this.pages.set(id, { page, url: page.url(), openedAt, browserType: browser });
     
     const consoleLogs: string[] = [];
     const errors: string[] = [];
@@ -496,15 +500,13 @@ export class PageManager {
     performanceMetrics.domContentLoaded = domContentLoadedTime;
     performanceMetrics.loadComplete = loadCompleteTime;
 
-    const sameUrlCount = Array.from(this.pages.values()).filter(p => p.url === url).length;
-    const info = sameUrlCount >= 2 ? 
-      `You have created ${sameUrlCount + 1} identical pages with this URL. If you need to refresh the page, please use the refresh_page tool instead.  If a refresh is required please close any unnecessary pages.` : 
+    const existingSameUrlCount = Array.from(this.pages.values()).filter(p => p.page !== page && (p.url === finalUrl || p.url === url)).length;
+    const info = existingSameUrlCount >= 1 ? 
+      `You have created ${existingSameUrlCount + 1} identical pages with this URL. If you need to refresh the page, please use the refresh_page tool instead.  If a refresh is required please close any unnecessary pages.` : 
       undefined;
 
-    const finalId = Array.from(this.pages.entries()).find(([pid, p]) => p.page === page)?.[0] || id;
-
     return {
-      id: finalId,
+      id,
       url,
       finalUrl,
       status,
@@ -683,8 +685,17 @@ export class PageManager {
       };
     }
 
-    if (pageInfo.browserType === 'edge' && this.edgeContext?.pages().length === 1) {
-      await this.edgeContext.newPage();
+    if (pageInfo.browserType === 'edge' && this.edgeContext) {
+      try {
+        const remainingPages = this.edgeContext.pages().filter(p => !p.isClosed());
+        if (remainingPages.length === 0) {
+          await this.edgeContext.newPage().catch(err => {
+            console.error('Failed to create new Edge page:', err);
+          });
+        }
+      } catch (error) {
+        console.error('Error managing Edge context:', error);
+      }
     }
 
     this.pages.delete(pageId);
@@ -724,6 +735,22 @@ export class PageManager {
         title: '',
         loadTime: 0,
         reloadedAt: Date.now()
+      };
+    }
+
+    if (pageInfo.page.isClosed()) {
+      this.pages.delete(pageId);
+      return {
+        success: false,
+        pageId,
+        url: '',
+        finalUrl: '',
+        status: 0,
+        statusText: 'Page has been closed',
+        title: '',
+        loadTime: 0,
+        reloadedAt: Date.now(),
+        error: 'Page has been closed'
       };
     }
 
@@ -824,14 +851,25 @@ export class PageManager {
       if (pageInfo) {
         await this.destroyConsoleEnvironment(id);
         
-        await pageInfo.page.close();
+        await pageInfo.page.close().catch(err => {
+          console.error(`Failed to close page ${id}:`, err);
+        });
         this.pages.delete(id);
         closedCount++;
       }
     }
 
-    if (this.edgeContext && this.edgeContext.pages().length === 0) {
-      await this.edgeContext.newPage();
+    if (this.edgeContext) {
+      try {
+        const remainingPages = this.edgeContext.pages().filter(p => !p.isClosed());
+        if (remainingPages.length === 0) {
+          await this.edgeContext.newPage().catch(err => {
+            console.error('Failed to create new Edge page after closing all:', err);
+          });
+        }
+      } catch (error) {
+        console.error('Error managing Edge context after closing all pages:', error);
+      }
     }
 
     return closedCount;
