@@ -46,6 +46,7 @@ yarn-error.log*
 .extensions/
 *.crx
 *.pem
+browser-config.json
 
 # Testing
 coverage/
