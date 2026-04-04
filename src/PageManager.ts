@@ -80,8 +80,24 @@ export class PageManager {
     const crypto = require('crypto');
     const hash = crypto.createHash('sha256').update(extensionDir).digest('hex');
     const base64Part = hash.substring(0, 80).replace(/[+/]/g, '').substring(0, 60);
-    
+
     return `MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA${base64Part}`;
+  }
+
+  private normalizeUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      // Remove trailing slash
+      let pathname = parsed.pathname;
+      if (pathname.endsWith('/') && pathname.length > 1) {
+        pathname = pathname.slice(0, -1);
+      }
+      parsed.pathname = pathname;
+      return parsed.toString();
+    } catch (e) {
+      // If URL parsing fails, return as-is
+      return url;
+    }
   }
 
   private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
@@ -231,31 +247,40 @@ export class PageManager {
       const url = page.url();
       if (url.startsWith('chrome-extension://') || url.startsWith('edge-extension://')) return;
 
-      const alreadyExists = Array.from(this.pages.values()).some(p => p.page === page);
-      if (!alreadyExists) {
-        const id = this.generateId();
-        this.pages.set(id, { page, url, openedAt: Date.now(), browserType });
-        
-        page.on('close', () => {
-          this.pages.delete(id);
-        });
-
-        page.on('framenavigated', (frame) => {
-          if (frame === page.mainFrame()) {
-            const info = this.pages.get(id);
-            if (info) info.url = page.url();
-          }
-        });
+      // Check if this page is already registered (by openPage)
+      const alreadyExists = Array.from(this.pages.entries()).find(([_, info]) => info.page === page);
+      if (alreadyExists) {
+        // Page already exists, don't re-register
+        return;
       }
+
+      // Only register if not already managed by openPage
+      const id = this.generateId();
+      this.pages.set(id, { page, url, openedAt: Date.now(), browserType });
+
+      page.on('close', () => {
+        this.pages.delete(id);
+      });
+
+      page.on('framenavigated', (frame) => {
+        if (frame === page.mainFrame()) {
+          const info = this.pages.get(id);
+          if (info) info.url = page.url();
+        }
+      });
     };
 
     context.pages().forEach(registerPage);
 
     context.on('page', (page) => {
-      registerPage(page);
-      if (browserType === 'edge' && (page.url().includes('onboarding') || page.url().includes('welcome'))) {
-        setTimeout(() => page.close().catch(()=>{}), 500);
-      }
+      // Delay registration slightly to avoid conflicts with openPage
+      // This gives openPage time to register the page first
+      setTimeout(() => {
+        registerPage(page);
+        if (browserType === 'edge' && (page.url().includes('onboarding') || page.url().includes('welcome'))) {
+          setTimeout(() => page.close().catch(()=>{}), 500);
+        }
+      }, 50);
     });
   }
 
@@ -299,6 +324,10 @@ export class PageManager {
     
     if (browser === 'edge') {
       await this.initializeEdge();
+      // Verify Edge context is still valid before using it
+      if (!this.edgeContext) {
+        throw new Error('Edge browser context is not available. Please try again.');
+      }
     } else {
       await this.initializeChrome();
     }
@@ -307,11 +336,26 @@ export class PageManager {
 
     const currentPages = context.pages();
     let page: Page;
-    
+
     if (currentPages.length === 1 && (currentPages[0].url() === 'about:blank' || currentPages[0].url().includes('edge://newtab'))) {
       page = currentPages[0];
     } else {
-      page = await context.newPage();
+      try {
+        page = await context.newPage();
+      } catch (error) {
+        // If context is closed, reinitialize and try again
+        if (browser === 'edge' && error instanceof Error && error.message.includes('has been closed')) {
+          this.edgeContext = null;
+          this.initEdgePromise = null;
+          await this.initializeEdge();
+          if (!this.edgeContext) {
+            throw new Error('Failed to reinitialize Edge browser context');
+          }
+          page = await (this.edgeContext as BrowserContext).newPage();
+        } else {
+          throw error;
+        }
+      }
     }
 
     const existingId = Array.from(this.pages.entries()).find(([_, info]) => info.page === page)?.[0];
@@ -321,8 +365,10 @@ export class PageManager {
 
     const id = this.generateId();
     const openedAt = Date.now();
-    this.pages.set(id, { page, url: page.url(), openedAt, browserType: browser });
-    
+
+    // Register the page immediately with our ID to prevent listener conflicts
+    this.pages.set(id, { page, url: '', openedAt, browserType: browser });
+
     const consoleLogs: string[] = [];
     const errors: string[] = [];
     
@@ -500,9 +546,20 @@ export class PageManager {
     performanceMetrics.domContentLoaded = domContentLoadedTime;
     performanceMetrics.loadComplete = loadCompleteTime;
 
-    const existingSameUrlCount = Array.from(this.pages.values()).filter(p => p.page !== page && (p.url === finalUrl || p.url === url)).length;
-    const info = existingSameUrlCount >= 1 ? 
-      `You have created ${existingSameUrlCount + 1} identical pages with this URL. If you need to refresh the page, please use the refresh_page tool instead.  If a refresh is required please close any unnecessary pages.` : 
+    // Update the page URL in our registered entry FIRST, before checking for duplicates
+    const pageInfo = this.pages.get(id);
+    if (pageInfo) {
+      pageInfo.url = finalUrl;
+    }
+
+    // Now check for duplicate URLs (excluding the current page we just added)
+    // Use normalized URLs for comparison to handle trailing slashes and other variations
+    const normalizedFinalUrl = this.normalizeUrl(finalUrl);
+    const existingSameUrlCount = Array.from(this.pages.entries()).filter(([pageId, p]) =>
+      pageId !== id && this.normalizeUrl(p.url) === normalizedFinalUrl
+    ).length;
+    const info = existingSameUrlCount >= 1 ?
+      `You have created ${existingSameUrlCount + 1} identical pages with this URL. If you need to refresh the page, please use the refresh_page tool instead. If a refresh is required please close any unnecessary pages.` :
       undefined;
 
     return {
@@ -685,18 +742,8 @@ export class PageManager {
       };
     }
 
-    if (pageInfo.browserType === 'edge' && this.edgeContext) {
-      try {
-        const remainingPages = this.edgeContext.pages().filter(p => !p.isClosed());
-        if (remainingPages.length === 0) {
-          await this.edgeContext.newPage().catch(err => {
-            console.error('Failed to create new Edge page:', err);
-          });
-        }
-      } catch (error) {
-        console.error('Error managing Edge context:', error);
-      }
-    }
+    // Note: We don't ensure Edge context stays alive after closing pages
+    // because this can cause misleading errors. The context will be reinitialized when needed.
 
     this.pages.delete(pageId);
     return {
@@ -843,34 +890,33 @@ export class PageManager {
 
   async closeAllPages(): Promise<number> {
     let closedCount = 0;
-    
+
     const pageIds = Array.from(this.pages.keys());
 
     for (const id of pageIds) {
       const pageInfo = this.pages.get(id);
       if (pageInfo) {
         await this.destroyConsoleEnvironment(id);
-        
-        await pageInfo.page.close().catch(err => {
-          console.error(`Failed to close page ${id}:`, err);
-        });
-        this.pages.delete(id);
-        closedCount++;
+
+        try {
+          await pageInfo.page.close();
+          this.pages.delete(id);
+          closedCount++;
+        } catch (err) {
+          // Page might already be closed or context might be closed
+          // This is acceptable when closing all pages
+          if (!err || !(err instanceof Error) || !err.message.includes('has been closed')) {
+            console.error(`Failed to close page ${id}:`, err);
+          }
+          this.pages.delete(id);
+          closedCount++;
+        }
       }
     }
 
-    if (this.edgeContext) {
-      try {
-        const remainingPages = this.edgeContext.pages().filter(p => !p.isClosed());
-        if (remainingPages.length === 0) {
-          await this.edgeContext.newPage().catch(err => {
-            console.error('Failed to create new Edge page after closing all:', err);
-          });
-        }
-      } catch (error) {
-        console.error('Error managing Edge context after closing all pages:', error);
-      }
-    }
+    // Note: We don't ensure Edge context stays alive after closing all pages
+    // because this can cause misleading errors when the context is intentionally closed.
+    // The context will be reinitialized automatically when needed.
 
     return closedCount;
   }
@@ -926,11 +972,73 @@ export class PageManager {
         error = response.exceptionDetails.exception?.description || response.exceptionDetails.text;
       } else {
         success = true;
-        result = response.result.value !== undefined ? response.result.value : response.result.description;
+        // Handle cases where returnByValue fails for special types like Symbol
+        if (response.result.value !== undefined) {
+          result = response.result.value;
+        } else if (response.result.type === 'symbol') {
+          result = `Symbol(${response.result.description || ''})`;
+        } else if (response.result.description) {
+          result = response.result.description;
+        } else {
+          result = response.result.value;
+        }
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-      success = false;
+      const errorMessage = err instanceof Error ? err.message : String(err);
+
+      // Handle special case where returnByValue fails for Symbol and other special types
+      if (errorMessage.includes('Object couldn\'t be returned by value')) {
+        // Try to get the result description using returnByValue: false
+        try {
+          const descriptionResponse = await consoleEnv.client.send('Runtime.evaluate', {
+            expression: code,
+            includeCommandLineAPI: true,
+            returnByValue: false,
+            awaitPromise: true,
+            replMode: false
+          });
+
+          if (!descriptionResponse.exceptionDetails && descriptionResponse.result) {
+            success = true;
+            // Extract description from the result object
+            if (descriptionResponse.result.type === 'symbol') {
+              result = `Symbol(${descriptionResponse.result.description || ''})`;
+            } else if (descriptionResponse.result.description) {
+              result = descriptionResponse.result.description;
+            } else {
+              result = `[${descriptionResponse.result.type}]`;
+            }
+          } else {
+            success = false;
+            error = `Cannot return Symbol or special object by value. Try wrapping your expression in parentheses or using String(expression).`;
+          }
+        } catch (descErr) {
+          // If that also fails, try a simpler approach using String()
+          try {
+            const stringResponse = await consoleEnv.client.send('Runtime.evaluate', {
+              expression: `String(${code})`,
+              includeCommandLineAPI: true,
+              returnByValue: true,
+              awaitPromise: true,
+              replMode: false
+            });
+
+            if (!stringResponse.exceptionDetails && stringResponse.result) {
+              success = true;
+              result = stringResponse.result.value;
+            } else {
+              success = false;
+              error = `Cannot return Symbol or special object by value. Try wrapping your expression in parentheses or using String(expression).`;
+            }
+          } catch (stringErr) {
+            success = false;
+            error = `Cannot return Symbol or special object by value. Try wrapping your expression in parentheses or using String(expression).`;
+          }
+        }
+      } else {
+        success = false;
+        error = errorMessage;
+      }
     }
 
     const executionTime = Date.now() - startTime;
@@ -1160,8 +1268,11 @@ export class PageManager {
   private generatePreview(value: any, maxLength: number = 200): string {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
+    
     const type = typeof value;
     switch (type) {
+      case 'symbol':
+        return `Symbol(${value.description || ''})`;
       case 'string':
         return value.length > maxLength ? `"${value.substring(0, maxLength)}..."` : `"${value}"`;
       case 'number':
@@ -1179,6 +1290,35 @@ export class PageManager {
         return value.toString().substring(0, maxLength);
       default:
         return String(value).substring(0, maxLength);
+    }
+  }
+
+  private async ensureEdgeContextAlive(): Promise<void> {
+    if (!this.edgeContext) return;
+    
+    try {
+      // Check if context is still valid before attempting operations
+      const remainingPages = this.edgeContext.pages().filter(p => !p.isClosed());
+      
+      if (remainingPages.length === 0) {
+        // Try to create a new page, but handle failures gracefully
+        // The context may have been closed, which is acceptable
+        try {
+          const newPage = await this.edgeContext.newPage();
+          // Navigate to about:blank to keep the context alive without loading external content
+          await newPage.goto('about:blank').catch(() => {});
+        } catch (err) {
+          // Context may have been closed - this is acceptable
+          // The context will be reinitialized on next use
+          this.edgeContext = null;
+          this.initEdgePromise = null;
+        }
+      }
+    } catch (error) {
+      // If any error occurs, the context is likely closed
+      // Mark it as null so it can be reinitialized later
+      this.edgeContext = null;
+      this.initEdgePromise = null;
     }
   }
 

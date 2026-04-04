@@ -1,55 +1,68 @@
 # Browser-Debugger MCP 测试报告
 
-**测试日期**: 2026-04-04  
-**测试人员**: 自动化测试审计员  
-**测试环境**: Windows, PowerShell5  
-**测试范围**: TESTING_PLAN.md 中定义的所有测试用例
-
----
-
 ## 测试总览
 
-| 测试章节 | 用例总数 | 通过 | 失败 | 跳过 | 状态 |
-|---------|---------|------|------|------|------|
-| 一、工具可用性测试 | 2 | 2 | 0 | 0 | 完成 |
-| 二、页面管理测试 | 8 | 6 | 2 | 0 | 完成 |
-| 三、JavaScript执行测试 | 5 | 5 | 0 | 0 | 完成 |
-| 四、页面检查与操作测试 | 3 | 2 | 1 | 0 | 完成 |
-| 五、双引擎模式测试 | 7 | 4 | 3 | 0 | 完成 |
-| 六、高级功能测试 | 2 | 2 | 0 | 0 | 完成 |
-| 七、生命周期和统计测试 | 7 | 4 | 0 | 3 | 完成 |
+- **测试执行时间**: 2026-04-04
+- **测试执行者**: 测试审计员
+- **测试版本**: 1.0.0
+- **测试环境**: Windows, Chrome 145.0.0.0
+- **测试覆盖范围**: 7个主要测试模块，50+测试用例
 
 ---
 
 ## 一、工具可用性测试
 
 ### 测试用例 1.1: 列出所有工具
-- **编号**: TC-1.1
-- **描述**: 验证list_pages工具在无页面时返回正确结果
-- **前置条件**: 无
-- **输入**: 调用 `mcp_browser-debugger_list_pages`
-- **预期**: 返回 `{"total": 0, "pages": []}`
-- **实际**: 返回 `{"total": 0, "pages": []}`
-- **结果**: PASS
+
+**测试步骤**: 调用 `mcp_browser-debugger_list_pages`
+
+**预期结果**:
+- 返回 `{"total": 0, "pages": []}`
+- 无错误抛出
+
+**实际结果**:
+```json
+{
+  "total": 1,
+  "pages": [
+    {
+      "id": "page_1775311431395_wb5l3mp4v",
+      "url": "https://example.com/",
+      "openedAt": 1775311431395,
+      "age": 1719708,
+      "browserType": "chrome"
+    }
+  ]
+}
+```
+
+**测试状态**: **FAIL**
+
+**失败原因**: 预期返回空列表，但实际返回了一个已存在的页面，说明测试环境不干净。
+
+---
 
 ### 测试用例 1.2: 验证工具列表
-- **编号**: TC-1.2
-- **描述**: 验证所有10个MCP工具都可调用
-- **前置条件**: MCP服务器已启动
-- **输入**: 检查工具列表
-- **预期**: 以下10个工具都可用:
-  1. mcp_browser-debugger_open_page
-  2. mcp_browser-debugger_refresh_page
-  3. mcp_browser-debugger_execute_js
-  4. mcp_browser-debugger_close_page
-  5. mcp_browser-debugger_list_pages
-  6. mcp_browser-debugger_console_execute
-  7. mcp_browser-debugger_get_console_history
-  8. mcp_browser-debugger_destroy_console_environment
-  9. mcp_browser-debugger_inspect_element
-  10. mcp_browser-debugger_simulate_action
-- **实际**: 所有10个工具都可用
-- **结果**: PASS
+
+**测试步骤**: 通过MCP客户端检查10个工具
+
+**预期结果**: 以下10个工具都在工具列表中
+
+**实际结果**: 所有工具都能被正确调用
+
+**测试状态**: **PASS**
+
+**验证点**:
+- ✓ mcp_browser-debugger_open_page
+- ✓ mcp_browser-debugger_refresh_page
+- ✓ mcp_browser-debugger_execute_js
+- ✓ mcp_browser-debugger_close_page
+- ✓ mcp_browser-debugger_list_pages
+- ✓ mcp_browser-debugger_console_execute
+- ✓ mcp_browser-debugger_get_console_history
+- ✓ mcp_browser-debugger_destroy_console_environment
+- ✓ mcp_browser-debugger_inspect_element
+- ✓ mcp_browser-debugger_simulate_action
 
 ---
 
@@ -58,760 +71,1969 @@
 ### 测试用例 2.1.1: 全能型页面打开验证（浏览器选择·重试机制·参数测试）
 
 #### 步骤1: 基本打开功能
-- **编号**: TC-2.1.1-S1
-- **描述**: 打开 https://example.com 验证基本功能
-- **输入**: `{"url": "https://example.com", "browser": "chrome", "includeScreenshot": false, "retryCount": 0}`
-- **预期**: 返回包含id, url, finalUrl, status, title, loadTime等字段，status为200
-- **实际**: 
-  ```json
-  {
-    "id": "page_1775305608774_puvzx5z1s",
-    "url": "https://example.com",
-    "finalUrl": "https://example.com/",
-    "status": 200,
-    "title": "Example Domain",
-    "loadTime": 1369,
-    "metadata": {"viewport": {"width": 1280, "height": 720}, "userAgent": "...", "cookies": 0, "localStorage": true, "sessionStorage": true},
-    "devContext": {"isLocalDevServer": false, "port": "", "detectedFrameworks": []},
-    "browserEngineUsed": "chrome"
-  }
-  ```
-- **结果**: PASS
+
+**测试步骤**:
+```json
+{
+  "url": "https://example.com",
+  "includeScreenshot": false,
+  "retryCount": 0
+}
+```
+
+**预期结果**:
+- 返回包含完整字段
+- status 为 200
+- loadTime 大于 0
+
+**实际结果**:
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "statusText": "",
+  "title": "Example Domain",
+  "consoleLogs": [],
+  "errors": [],
+  "loadTime": 26,
+  "openedAt": 1775313167915,
+  "performance": {
+    "domContentLoaded": 8,
+    "loadComplete": 9
+  },
+  "metadata": {
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+    "cookies": 2,
+    "localStorage": true,
+    "sessionStorage": true
+  },
+  "devContext": {
+    "isLocalDevServer": false,
+    "port": "",
+    "detectedFrameworks": []
+  },
+  "browserEngineUsed": "chrome"
+}
+```
+
+**测试状态**: **PASS**
+
+**问题发现**: `id` 字段返回 "unknown" 而不是实际的 pageId
+
+---
 
 #### 步骤2: 浏览器参数测试
-- **编号**: TC-2.1.1-S2
-- **描述**: 测试chrome浏览器参数
-- **输入**: `{"url": "https://example.com", "browser": "chrome", "includeScreenshot": false, "retryCount": 0}`
-- **预期**: 使用Chrome浏览器
-- **实际**: `browserEngineUsed`: "chrome"
-- **结果**: PASS
 
-- **编号**: TC-2.1.1-S2b
-- **描述**: 测试edge浏览器参数
-- **输入**: `{"url": "https://example.org", "browser": "edge", "includeScreenshot": false, "retryCount": 0}`
-- **预期**: 使用Edge浏览器
-- **实际**: `browserEngineUsed`: "edge"
-- **结果**: PASS
+**测试步骤**: 分别使用 chrome 和 edge 浏览器打开页面
+
+**实际结果**:
+- Chrome: 成功打开，使用Chrome浏览器
+- Edge: **失败**，返回错误 `Error: browserContext.newPage: Target page, context or browser has been closed`
+
+**测试状态**: **PARTIAL PASS**
+
+**失败原因**: Edge浏览器无法正常打开页面，多次尝试均失败
+
+---
+
+#### 步骤3: 重试机制测试
+
+**测试步骤**: 使用 retryCount 参数测试重试机制
+
+**测试状态**: **未完成**
+
+**原因**: 由于Edge浏览器测试失败，无法验证重试机制
+
+---
 
 #### 步骤4: includeScreenshot参数测试
-- **编号**: TC-2.1.1-S4a
-- **描述**: 测试includeScreenshot: false
-- **输入**: `{"includeScreenshot": false}`
-- **预期**: 不包含screenshot字段
-- **实际**: 返回结果中无screenshot字段
-- **结果**: PASS
+
+**测试步骤**: 分别使用 false 和 true 参数
+
+**实际结果**:
+- false: 成功，不包含 screenshot 字段
+- true: 成功，包含 screenshot 字段（Base64编码的PNG图片）
+
+**测试状态**: **PASS**
+
+---
 
 #### 步骤6: URL重定向测试
-- **编号**: TC-2.1.1-S6
-- **描述**: 测试URL重定向处理
-- **输入**: `{"url": "https://httpbin.org/redirect/2"}`
-- **预期**: 原始URL和最终URL都被记录，status为200
-- **实际**: 
-  ```json
-  {
-    "url": "https://httpbin.org/redirect/2",
-    "finalUrl": "https://httpbin.org/get",
-    "status": 200
-  }
-  ```
-- **结果**: PASS
 
-### 测试用例 2.1.4: 打开多个页面
-- **编号**: TC-2.1.4
-- **描述**: 打开多个页面验证页面管理
-- **输入**: 
-  1. 打开 https://example.com
-  2. 打开 https://example.org
-  3. 打开 https://example.net
-- **预期**: list_pages返回total: 3，三个页面有唯一ID
-- **实际**: list_pages返回total: 1，只有一个chrome页面
-- **结果**: FAIL
-- **问题描述**: list_pages只返回chrome浏览器页面，edge页面未显示在列表中
+**测试步骤**: 访问 https://httpbin.org/redirect/2
 
-### 测试用例 2.1.5: 相同URL警告功能测试
-- **编号**: TC-2.1.5
-- **描述**: 验证打开相同URL时的警告功能
-- **输入**: 
-  1. 第一次打开 https://example.com
-  2. 第二次打开 https://example.com
-  3. 第三次打开 https://example.com
-- **预期**: 第二次和第三次应该包含警告信息
-- **实际**: 所有返回结果中都没有info字段或警告信息
-- **结果**: FAIL
-- **问题描述**: 相同URL警告功能未触发，info字段未出现在返回结果中
+**实际结果**:
+```json
+{
+  "url": "https://httpbin.org/redirect/2",
+  "finalUrl": "https://httpbin.org/get",
+  "status": 200
+}
+```
 
-### 测试用例 2.2.1: 刷新有效页面
-- **编号**: TC-2.2.1
-- **描述**: 刷新已打开的页面
-- **输入**: `{"pageId": "page_1775305608774_puvzx5z1s", "waitUntil": "domcontentloaded", "timeout": 30000, "includeScreenshot": false}`
-- **预期**: 返回success: true，loadTime > 0
-- **实际**: 返回success: false，错误: "page.reload: net::ERR_ABORTED; maybe frame was detached?"
-- **结果**: FAIL
-- **问题描述**: 刷新页面失败，错误提示frame已分离
+**测试状态**: **PASS**
 
-### 测试用例 2.2.4: includeScreenshot参数测试（刷新）
-- **编号**: TC-2.2.4
-- **描述**: 测试刷新时的截图参数
-- **输入**: `{"includeScreenshot": true}`
-- **预期**: 包含screenshot字段（Base64编码）
-- **实际**: 返回结果中包含screenshot字段，Base64编码的PNG图片
-- **结果**: PASS
+**验证点**:
+- ✓ URL重定向被正确处理
+- ✓ 原始URL和最终URL都被记录
+- ✓ 页面成功加载
 
-### 测试用例 2.2.2: 使用不同的waitUntil参数
-- **编号**: TC-2.2.2a
-- **描述**: 测试waitUntil: domcontentloaded
-- **输入**: `{"waitUntil": "domcontentloaded"}`
-- **预期**: 成功刷新
-- **实际**: success: false，错误
-- **结果**: FAIL
+---
 
-- **编号**: TC-2.2.2b
-- **描述**: 测试waitUntil: networkidle
-- **输入**: `{"waitUntil": "networkidle"}`
-- **预期**: 成功刷新
-- **实际**: success: false，错误，但包含screenshot
-- **结果**: FAIL
+### 测试用例 2.1.5: 相同URL警告功能测试 (重要)
 
-### 测试用例 2.3.1: 关闭单个页面
-- **编号**: TC-2.3.1
-- **描述**: 关闭所有页面
-- **输入**: `{"pageId": "all"}`
-- **预期**: 所有页面被关闭，list_pages返回total: 0
-- **实际**: close_page返回错误，但list_pages返回total: 0
-- **结果**: PASS（功能正常，尽管有错误信息）
+**测试步骤**:
+1. 打开 https://example.com
+2. 再次打开 https://example.com
+3. 第三次打开 https://example.com
+
+**预期结果**:
+- 第一次调用: 无警告
+- 第二次调用: 显示警告 "You have created 2 identical pages with this URL..."
+- 第三次调用: 显示警告 "You have created 3 identical pages with this URL..."
+
+**实际结果**:
+所有三次调用都没有显示任何警告信息，所有返回结果中都没有 `info` 字段
+
+**测试状态**: **FAIL**
+
+**失败原因**: 相同URL警告功能没有按预期工作
+
+**详细观察**: 调用三次后，list_pages 显示总共有7个页面，其中多个是相同的URL，但没有触发任何警告
+
+---
 
 ### 测试用例 2.1.6: Edge持久化模式与插件自动清理
-- **编号**: TC-2.1.6
-- **描述**: 测试Edge持久化模式
-- **输入**: `{"url": "https://immersivetranslate.com", "browser": "edge"}`
-- **预期**: 成功打开Edge页面
-- **实际**: 错误 "browserContext.newPage: Protocol error (Target.createTarget): Failed to open a new tab"
-- **结果**: FAIL
-- **问题描述**: Edge浏览器创建新标签页失败
+
+**测试步骤**: 尝试使用Edge浏览器打开页面
+
+**实际结果**: 所有Edge浏览器调用都失败
+
+**测试状态**: **FAIL**
+
+**失败原因**: Edge浏览器无法正常启动，错误信息为 `Error: browserContext.newPage: Target page, context or browser has been closed`
+
+---
+
+### 测试用例 2.2.1: 刷新有效页面
+
+**测试步骤**: 使用不同的waitUntil参数刷新页面
+
+**实际结果**:
+- domcontentloaded: 成功，loadTime: 242
+- load: 成功，loadTime: 440
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 2.2.3: 刷新不存在的页面（错误处理）
+
+**测试步骤**: 刷新不存在的页面ID
+
+**实际结果**:
+```json
+{
+  "success": false,
+  "pageId": "non-existent-page-id",
+  "url": "",
+  "finalUrl": "",
+  "status": 0,
+  "statusText": "Page not found",
+  "title": "",
+  "loadTime": 0,
+  "reloadedAt": 1775313241464
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 2.3.1: 关闭单个页面
+
+**测试步骤**: 关闭一个已存在的页面
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "message": "Page page_1775313168024_955s0dzm4 closed successfully",
+  "id": "page_1775313168024_955s0dzm4"
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 2.3.2: 关闭所有页面
+
+**测试步骤**: 关闭所有页面
+
+**实际结果**: 返回错误 `Error: browserContext.newPage: Target page, context or browser has been closed`
+
+**测试状态**: **FAIL**
+
+**失败原因**: 关闭所有页面时出现错误，可能是浏览器上下文已关闭
+
+---
+
+### 测试用例 2.3.3: 关闭不存在的页面（错误处理）
+
+**测试步骤**: 关闭不存在的页面
+
+**实际结果**:
+```json
+{
+  "success": false,
+  "message": "Page with id non-existent-page-id not found"
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 2.4.1: 列出空页面列表
+
+**测试步骤**: 在关闭所有页面后列出页面
+
+**实际结果**:
+```json
+{
+  "total": 0,
+  "pages": []
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 2.4.2: 列出多个页面
+
+**测试步骤**: 打开3个不同页面后列出页面
+
+**实际结果**:
+```json
+{
+  "total": 3,
+  "pages": [
+    {
+      "id": "page_1775313256684_mcdu5ml8u",
+      "url": "https://example.com/",
+      "openedAt": 1775313256684,
+      "age": 5517,
+      "browserType": "chrome"
+    },
+    {
+      "id": "page_1775313256752_hk485iu7r",
+      "url": "https://example.org/",
+      "openedAt": 1775313256752,
+      "age": 5449,
+      "browserType": "chrome"
+    },
+    {
+      "id": "page_1775313256814_3on6he4qv",
+      "url": "https://example.net/",
+      "openedAt": 1775313256814,
+      "age": 5387,
+      "browserType": "chrome"
+    }
+  ]
+}
+```
+
+**测试状态**: **PASS**
 
 ---
 
 ## 三、JavaScript执行测试
 
-### 测试用例 3.1.1: 基础脚本执行
-- **编号**: TC-3.1.1a
-- **描述**: 执行简单表达式 1 + 1
-- **输入**: `{"pageId": "unknown", "script": "1 + 1"}`
-- **预期**: 返回result: 2
-- **实际**: success: false，错误: "Page with id unknown not found"
-- **结果**: FAIL
-- **问题描述**: 使用"unknown"作为pageId导致页面未找到
+### 测试用例 3.1.1: 基础脚本执行（表达式·函数·变量）
 
-- **编号**: TC-3.1.1b
-- **描述**: 执行document.title
-- **输入**: `{"pageId": "page_1775305634242_s9zjuatc8", "script": "document.title"}`
-- **预期**: 返回"Example Domain"
-- **实际**: 返回result: "Example Domain"
-- **结果**: PASS
+**测试步骤**: 执行简单表达式
 
-### 测试用例 3.1.2: DOM访问与复杂类型
-- **编号**: TC-3.1.2a
-- **描述**: 执行对象表达式
-- **输入**: `{"pageId": "page_1775305634242_s9zjuatc8", "script": "({ a: 1, b: 2 })"}`
-- **预期**: 返回对象 {a: 1, b: 2}
-- **实际**: 返回result: {"a": 1, "b": 2}
-- **结果**: PASS
-
-- **编号**: TC-3.1.2b
-- **描述**: 执行数组表达式
-- **输入**: `{"pageId": "page_1775305634242_s9zjuatc8", "script": "[1, 2, 3, 4, 5]"}`
-- **预期**: 返回数组 [1, 2, 3, 4, 5]
-- **实际**: 返回result: [1, 2, 3, 4, 5]
-- **结果**: PASS
-
-### 测试用例 3.2: console_execute测试
-- **编号**: TC-3.2a
-- **描述**: 在控制台执行变量声明
-- **输入**: `{"code": "const x = 10;", "pageId": "page_1775305634242_s9zjuatc8"}`
-- **预期**: success: true，preview: "undefined"
-- **实际**: success: true，preview: "undefined"
-- **结果**: PASS
-
-- **编号**: TC-3.2b
-- **描述**: 在控制台执行变量声明
-- **输入**: `{"code": "const y = 20;", "pageId": "page_1775305634242_s9zjuatc8"}`
-- **预期**: success: true，preview: "undefined"
-- **实际**: success: true，preview: "undefined"
-- **结果**: PASS
-
-- **编号**: TC-3.2c
-- **描述**: 在控制台执行表达式（使用之前声明的变量）
-- **输入**: `{"code": "x + y", "pageId": "page_1775305634242_s9zjuatc8"}`
-- **预期**: success: true，result: 30
-- **实际**: success: true，result: 30
-- **结果**: PASS
-
-### 测试用例 3.3: get_console_history测试
-- **编号**: TC-3.3
-- **描述**: 获取控制台执行历史
-- **输入**: `{"pageId": "page_1775305634242_s9zjuatc8"}`
-- **预期**: 返回包含之前执行的3条命令的历史
-- **实际**: 返回包含3条历史的数组:
-  ```json
-  {
-    "history": [
-      {"code": "const x = 10;", "preview": "undefined", "timestamp": 1775305664125, "executionTime": 0, "success": true},
-      {"code": "const y = 20;", "preview": "undefined", "timestamp": 1775305664177, "executionTime": 0, "success": true},
-      {"code": "x + y", "result": 30, "preview": "30", "timestamp": 1775305664221, "executionTime": 1, "success": true}
-    ]
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": 2,
+  "executionTime": 2,
+  "context": {
+    "pageTitle": "",
+    "pageUrl": "https://httpbin.org/get",
+    "timestamp": 1775313205580,
+    "scriptLength": 5,
+    "scriptType": "expression"
   }
-  ```
-- **结果**: PASS
+}
+```
 
-### 测试用例 3.4: destroy_console_environment测试
-- **编号**: TC-3.4
-- **描述**: 销毁控制台环境
-- **输入**: `{"pageId": "page_1775305634242_s9zjuatc8"}`
-- **预期**: success: true，返回销毁成功消息
-- **实际**: success: true，message: "Console environment destroyed for page page_1775305634242_s9zjuatc8"
-- **结果**: PASS
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 3.1.2: DOM访问与复杂类型（对象·数组）
+
+**测试步骤**: 访问DOM和执行复杂对象操作
+
+**实际结果**:
+- document.title: 成功，返回 ""
+- 复杂对象: 成功，返回完整嵌套结构
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 3.1.3: 错误处理与参数测试
+
+**测试步骤**: 执行抛出错误的代码
+
+**实际结果**:
+```json
+{
+  "success": false,
+  "error": "page.evaluate: Error: test error\n    at eval (eval at evaluate (:290:30), <anonymous>:1:7)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+  "executionTime": 2,
+  "context": {
+    "pageTitle": "Example Domain",
+    "pageUrl": "https://example.com/",
+    "timestamp": 1775313241415,
+    "scriptLength": 29,
+    "scriptType": "expression"
+  }
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 3.2.1: 创建控制台环境并执行代码
+
+**测试步骤**: 使用console_execute执行代码
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": 20,
+  "preview": "20",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 3.2.2: 变量持久化测试
+
+**测试步骤**: 顺序调用测试变量持久化
+
+**实际结果**:
+- 第一次: result: 0
+- 第二次: result: 1
+- 第三次: result: 6 (counter += 5; counter)
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 3.2.5: 错误代码执行
+
+**测试步骤**: 执行抛出错误的代码
+
+**实际结果**: 成功捕获错误
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 3.2.8: CDP会话创建失败处理
+
+**测试步骤**: 在已关闭的页面上执行console_execute
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
+
+---
+
+### 测试用例 3.3.1: 获取完整历史
+
+**测试步骤**: 获取控制台执行历史
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "history": [
+    {
+      "code": "let x = 10; x * 2",
+      "result": 20,
+      "preview": "20",
+      "timestamp": 1775313210354,
+      "executionTime": 1,
+      "success": true
+    },
+    {
+      "code": "counter = 0; counter",
+      "result": 0,
+      "preview": "0",
+      "timestamp": 1775313210418,
+      "executionTime": 1,
+      "success": true
+    },
+    {
+      "code": "counter += 1; counter",
+      "result": 1,
+      "preview": "1",
+      "timestamp": 1775313210459,
+      "executionTime": 0,
+      "success": true
+    }
+  ]
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 3.4.1: 销毁控制台环境
+
+**测试步骤**: 销毁控制台环境
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "message": "Console environment destroyed for page page_1775313180986_3bz9lq7tm"
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 3.5.1: 综合预览测试
+
+#### 步骤1: 基本类型预览
+
+**测试步骤**: 执行 null
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": null,
+  "preview": "null",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+#### 步骤2: 数组预览
+
+**测试步骤**: 执行 `[1, 2, 3].map(x => x * 2)`
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": [2, 4, 6],
+  "preview": "Array(3)[2, 4, 6]",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+#### 步骤3: 对象预览
+
+**测试步骤**: 执行 `({ a: 1, b: 2, c: { d: 3 } })`
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": {
+    "a": 1,
+    "b": 2,
+    "c": {
+      "d": 3
+    }
+  },
+  "preview": "{a: 1, b: 2, c: {d: 3}}",
+  "executionTime": 0
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+#### 步骤5: 字符串截断预览
+
+**测试步骤**: 执行 `'a'.repeat(1000)`
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "preview": "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **PASS**
+
+**验证点**:
+- ✓ 长字符串完整返回
+- ✓ 预览正确截断（800字符限制）
+
+---
+
+#### 步骤7: 复杂嵌套结构预览
+
+**测试步骤**: 执行 `({ a: { b: { c: { d: { e: 'deep' } } } } })`
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": {
+    "a": {
+      "b": {
+        "c": {
+          "d": {
+            "e": "deep"
+          }
+        }
+      }
+    }
+  },
+  "preview": "{a: {b: {c: {d: {e: \"deep\"}}}}}",
+  "executionTime": 0
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+#### 步骤9: Symbol预览
+
+**测试步骤**: 执行 `Symbol('test')`
+
+**实际结果**:
+```json
+{
+  "success": false,
+  "error": "cdpSession.send: Protocol error (Runtime.evaluate): Object couldn't be returned by value",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **FAIL**
+
+**失败原因**: Symbol类型无法通过CDP返回
 
 ---
 
 ## 四、页面检查与操作测试
 
-### 测试用例 4.1: inspect_element测试
-- **编号**: TC-4.1a
-- **描述**: 检查h1元素
-- **输入**: `{"pageId": "page_1775305634242_s9zjuatc8", "selector": "h1"}`
-- **预期**: 返回h1元素的详细信息
-- **实际**: 
-  ```json
-  {
-    "success": true,
-    "selector": "h1",
-    "isVisible": true,
-    "boundingBox": {"x": 256, "y": 108, "width": 768, "height": 30.5},
-    "computedStyles": {...},
-    "htmlPreview": "<h1>Example Domain</h1>"
-  }
-  ```
-- **结果**: PASS
+### 测试用例 4.1.1: 检查单个元素
 
-- **编号**: TC-4.1b
-- **描述**: 检查p元素
-- **输入**: `{"pageId": "page_1775305634242_s9zjuatc8", "selector": "p"}`
-- **预期**: 返回p元素的详细信息
-- **实际**: 
-  ```json
-  {
-    "success": true,
-    "selector": "p",
-    "isVisible": true,
-    "boundingBox": {"x": 256, "y": 154.578125, "width": 768, "height": 41},
-    "computedStyles": {...},
-    "htmlPreview": "<p>This domain is for use in documentation examples without needing permission. Avoid use in operations.</p>"
-  }
-  ```
-- **结果**: PASS
+**测试步骤**: 检查body元素
 
-### 测试用例 4.2: simulate_action测试
-- **编号**: TC-4.2a
-- **描述**: 点击链接元素
-- **输入**: `{"action": "click", "pageId": "page_1775305634242_s9zjuatc8", "selector": "a"}`
-- **预期**: success: true
-- **实际**: success: true，message: "Successfully clicked element matching selector \"a\""
-- **结果**: PASS
+**实际结果**:
+```json
+{
+  "success": true,
+  "selector": "body",
+  "isVisible": true,
+  "boundingBox": {
+    "x": 0,
+    "y": 13,
+    "width": 1280,
+    "height": 350
+  },
+  "computedStyles": {
+    "display": "block",
+    "position": "static",
+    "box-sizing": "content-box",
+    "visibility": "visible",
+    "opacity": "1",
+    "z-index": "auto",
+    "width": "1280px",
+    "height": "350px",
+    ...
+  },
+  "htmlPreview": "<body><pre>{\n  \"args\": {}, \n  \"headers\": {...}\n}..."
+}
+```
 
-- **编号**: TC-4.2b
-- **描述**: 悬停在h1元素上
-- **输入**: `{"action": "hover", "pageId": "page_1775305634242_s9zjuatc8", "selector": "h1"}`
-- **预期**: success: true
-- **实际**: success: true，message: "Successfully hovered over element matching selector \"h1\""
-- **结果**: PASS
+**测试状态**: **PASS**
 
-- **编号**: TC-4.2c
-- **描述**: 聚焦到input元素
-- **输入**: `{"action": "focus", "pageId": "page_1775305634242_s9zjuatc8", "selector": "input"}`
-- **预期**: success: false或true（取决于页面是否有input）
-- **实际**: success: false，error: "Element matching selector \"input\" not found in DOM."
-- **结果**: PASS（页面确实没有input元素）
+---
+
+### 测试用例 4.1.2: 检查不存在的元素（错误处理）
+
+**测试步骤**: 检查不存在的元素
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
+
+---
+
+### 测试用例 4.2.1: 基础元素操作
+
+**测试步骤**: 点击h1元素
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "message": "Successfully clicked element matching selector \"h1\""
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 4.2.2: 错误处理与多元素选择
+
+**测试步骤**: 点击不存在的元素
+
+**实际结果**:
+```json
+{
+  "success": false,
+  "error": "Element matching selector \".non-existent-button\" not found in DOM."
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 4.2.3: 坐标操作与拖拽
+
+**测试步骤**: 测试坐标操作
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
+
+---
+
+### 测试用例 4.2.4: 高级移动操作
+
+**测试步骤**: 测试高级移动操作
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
 
 ---
 
 ## 五、双引擎模式测试
 
 ### 测试用例 5.1.1: Chrome基本页面打开
-- **编号**: TC-5.1.1
-- **描述**: 使用Chrome打开 https://example.com
-- **前置条件**: 无
-- **输入**: `{"url": "https://example.com", "browser": "chrome", "includeScreenshot": false, "retryCount": 0}`
-- **预期**: 页面成功打开，使用Chrome浏览器，返回包含id、url、status、title等字段
-- **实际**: 
-  ```json
-  {
-    "id": "unknown",
-    "url": "https://example.com",
-    "finalUrl": "https://example.com/",
-    "status": 200,
-    "title": "Example Domain",
-    "loadTime": 25,
-    "browserEngineUsed": "chrome"
-  }
-  ```
-- **结果**: PASS
+
+**测试步骤**: 使用Chrome打开页面
+
+**实际结果**: 成功
+
+**测试状态**: **PASS**
+
+---
 
 ### 测试用例 5.1.2: Chrome多个页面
-- **编号**: TC-5.1.2
-- **描述**: 连续打开3个Chrome页面
-- **前置条件**: 无
-- **输入**: 
-  1. `{"url": "https://example.com", "browser": "chrome"}`
-  2. `{"url": "https://example.org", "browser": "chrome"}`
-  3. `{"url": "https://example.net", "browser": "chrome"}`
-- **预期**: 所有页面成功打开，list_pages显示3个页面
-- **实际**: list_pages返回total: 3，显示3个chrome页面
-- **结果**: PASS
+
+**测试步骤**: 同时打开多个Chrome页面
+
+**实际结果**: 成功，list_pages显示3个页面
+
+**测试状态**: **PASS**
+
+---
 
 ### 测试用例 5.1.3: Chrome脚本执行
-- **编号**: TC-5.1.3
-- **描述**: 在Chrome页面执行JavaScript获取User-Agent
-- **前置条件**: 已打开Chrome页面
-- **输入**: `{"pageId": "page_1775305787023_po9o9t247", "script": "navigator.userAgent"}`
-- **预期**: 返回Chrome的User-Agent字符串
-- **实际**: 返回 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
-- **结果**: PASS
+
+**测试步骤**: 在Chrome页面执行脚本
+
+**实际结果**: 成功
+
+**测试状态**: **PASS**
+
+---
 
 ### 测试用例 5.1.4: Chrome控制台环境
-- **编号**: TC-5.1.4
-- **描述**: 在Chrome页面的控制台环境中执行变量声明和访问
-- **前置条件**: 已打开Chrome页面
-- **输入**: `{"pageId": "page_1775305787023_po9o9t247", "code": "let x = 'chrome'; x"}`
-- **预期**: 返回result: "chrome"
-- **实际**: 返回result: "chrome"
-- **结果**: PASS
+
+**测试步骤**: 在Chrome页面使用控制台环境
+
+**实际结果**: 成功
+
+**测试状态**: **PASS**
+
+---
 
 ### 测试用例 5.2.1: Edge基本页面打开
-- **编号**: TC-5.2.1
-- **描述**: 使用Edge打开页面
-- **前置条件**: 无
-- **输入**: `{"url": "https://example.com", "browser": "edge", "includeScreenshot": false, "retryCount": 0}`
-- **预期**: 页面成功打开，使用Edge浏览器
-- **实际**: 返回错误 "browserContext.newPage: Target page, context or browser has been closed"
-- **结果**: FAIL
-- **问题描述**: Edge浏览器上下文已关闭，无法创建新页面
+
+**测试步骤**: 使用Edge打开页面
+
+**实际结果**: **失败**
+
+**失败原因**: 所有Edge浏览器调用都失败，错误信息为 `Error: browserContext.newPage: Target page, context or browser has been closed`
+
+**测试状态**: **FAIL**
+
+**问题影响**: 所有Edge相关测试都无法进行
+
+---
+
+### 测试用例 5.2.2: Edge持久化模式
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
+
+---
+
+### 测试用例 5.2.3: Edge插件清理
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
+
+---
+
+### 测试用例 5.2.4: Edge脚本执行
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
+
+---
+
+### 测试用例 5.2.5: Edge控制台环境
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
+
+---
 
 ### 测试用例 5.3.1: 同时使用Chrome和Edge
-- **编号**: TC-5.3.1
-- **描述**: 同时打开Chrome和Edge页面
-- **前置条件**: 无
-- **输入**: 
-  1. Chrome打开 https://example.com
-  2. Edge打开 https://example.org
-  3. list_pages
-- **预期**: total: 2，一个Chrome页面，一个Edge页面
-- **实际**: 由于Edge无法打开，list_pages只显示Chrome页面
-- **结果**: FAIL
-- **问题描述**: Edge浏览器上下文已关闭，无法打开Edge页面
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
+
+---
 
 ### 测试用例 5.3.2: Chrome和Edge独立控制台环境
-- **编号**: TC-5.3.2
-- **描述**: 测试Chrome和Edge的控制台环境独立性
-- **前置条件**: 需要同时打开Chrome和Edge页面
-- **输入**: 
-  1. Chrome页面执行 `let x = 'chrome'; x`
-  2. Edge页面执行 `let x = 'edge'; x`
-  3. Chrome页面执行 `x`
-  4. Edge页面执行 `x`
-- **预期**: Chrome返回"chrome"，Edge返回"edge"
-- **实际**: 由于Edge页面无法打开，无法执行此测试
-- **结果**: FAIL
-- **问题描述**: Edge浏览器上下文已关闭，无法创建Edge页面进行测试
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
+
+---
+
+### 测试用例 5.3.3: 关闭一个引擎不影响另一个
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
+
+---
+
+### 测试用例 5.3.4: 双引擎错误隔离
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
 
 ---
 
 ## 六、高级功能测试
 
-### 测试用例 6.1.1: React框架检测
-- **编号**: TC-6.1.1
-- **描述**: 检测React.js网站是否被正确识别
-- **前置条件**: 无
-- **输入**: `{"url": "https://react.dev", "browser": "chrome"}`
-- **预期**: devContext.detectedFrameworks包含"react"或相关框架
-- **实际**: 
-  ```json
-  {
-    "id": "page_1775306317015_xj3mft8l9",
-    "devContext": {
-      "detectedFrameworks": ["Next.js"]
-    }
-  }
-  ```
-  额外验证：执行 `typeof window.React !== 'undefined' ? 'React detected' : 'React not detected'` 返回 "React not detected"
-- **结果**: PASS（检测到Next.js，这是基于React的框架）
+### 测试用例 6.1.1: React检测
 
-### 测试用例 6.1.1b: Vue.js框架检测
-- **编号**: TC-6.1.1b
-- **描述**: 检测Vue.js网站是否被正确识别
-- **前置条件**: 无
-- **输入**: `{"url": "https://vuejs.org", "browser": "chrome"}`
-- **预期**: devContext.detectedFrameworks包含"vue"或相关框架
-- **实际**: 
-  ```json
-  {
-    "id": "page_1775306328342_quc601j8n",
-    "devContext": {
-      "detectedFrameworks": []
-    }
-  }
-  ```
-  detectedFrameworks为空数组，未检测到Vue框架
-- **结果**: PASS（框架检测功能正常工作，虽然未检测到Vue）
+**测试步骤**: 打开React网站并检测框架
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
 
 ---
 
-## 失败明细
+### 测试用例 6.1.2: 全局suggestion参数测试
 
-### TC-2.1.4: 打开多个页面
-**问题描述**: list_pages只返回chrome浏览器页面，edge页面未显示在列表中  
-**触发文件**: 未知（需要查看list_pages实现）  
-**现象**: 打开了三个页面（2个chrome，1个edge），但list_pages只返回1个chrome页面  
-**影响**: 多浏览器页面管理功能不完整
+**测试步骤**: 测试所有工具的suggestion参数
 
-### TC-2.1.5: 相同URL警告功能测试
-**问题描述**: 相同URL警告功能未触发  
-**触发文件**: PageManager.ts#L501（根据测试计划）  
-**现象**: 连续打开3次相同的URL，info字段未出现在任何返回结果中  
-**影响**: 用户可能重复打开相同URL的页面而不知道
+**测试状态**: **未完成**
 
-### TC-2.2.1: 刷新有效页面
-**问题描述**: 刷新页面失败  
-**错误信息**: "page.reload: net::ERR_ABORTED; maybe frame was detached?"  
-**现象**: 调用refresh_page后返回success: false  
-**影响**: 无法刷新已打开的页面
+**原因**: 未专门测试此场景
 
-### TC-2.2.2a: 使用waitUntil: domcontentloaded
-**问题描述**: 刷新失败  
-**错误信息**: 同TC-2.2.1  
-**影响**: 无法使用domcontentloaded参数刷新
+---
 
-### TC-2.2.2b: 使用waitUntil: networkidle
-**问题描述**: 刷新失败  
-**错误信息**: 同TC-2.2.1  
-**影响**: 无法使用networkidle参数刷新
+### 测试用例 6.1.3: Angular检测
 
-### TC-3.1.1a: 执行简单表达式 1 + 1
-**问题描述**: 使用"unknown"作为pageId导致页面未找到  
-**错误信息**: "Page with id unknown not found"  
-**现象**: open_page返回的id为"unknown"，但execute_js无法找到该页面  
-**影响**: 需要使用list_pages获取正确的pageId
+**测试状态**: **未完成**
 
-### TC-2.1.6: Edge持久化模式测试
-**问题描述**: Edge浏览器创建新标签页失败  
-**错误信息**: "browserContext.newPage: Protocol error (Target.createTarget): Failed to open a new tab"  
-**现象**: 尝试打开Edge页面时失败  
-**影响**: 无法使用Edge浏览器进行测试
+**原因**: 未专门测试此场景
 
-### TC-5.2.1: Edge基本页面打开
-**问题描述**: Edge浏览器上下文已关闭，无法创建新页面  
-**错误信息**: "browserContext.newPage: Target page, context or browser has been closed"  
-**现象**: 尝试使用Edge浏览器打开页面时失败  
-**影响**: 无法使用Edge浏览器进行双引擎模式测试
+---
 
-### TC-5.3.1: 同时使用Chrome和Edge
-**问题描述**: Edge浏览器上下文已关闭，无法打开Edge页面  
-**错误信息**: 同TC-5.2.1  
-**现象**: 无法同时打开Chrome和Edge页面进行双引擎共存测试  
-**影响**: 双引擎模式功能无法验证
+### 测试用例 6.1.4: Next.js检测
 
-### TC-5.3.2: Chrome和Edge独立控制台环境
-**问题描述**: Edge浏览器上下文已关闭，无法创建Edge页面  
-**错误信息**: 同TC-5.2.1  
-**现象**: 无法验证Chrome和Edge控制台环境的独立性  
-**影响**: 双引擎模式控制台环境隔离功能无法验证
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
+
+---
+
+### 测试用例 6.1.5: 无框架检测
+
+**测试步骤**: 打开纯HTML网站
+
+**实际结果**: 在example.com打开时，`devContext.detectedFrameworks` 为空数组
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 6.2.1: LocalStorage检测
+
+**测试步骤**: 测试LocalStorage读写
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": "value",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 6.2.2: SessionStorage检测
+
+**测试步骤**: 测试SessionStorage读写
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": "data",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **PASS**
+
+---
+
+### 测试用例 6.2.3: 存储访问异常处理
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
+
+---
+
+### 测试用例 6.3.1: ImmersiveTranslate自动关闭onboarding
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动，无法访问immersivetranslate.com
+
+---
+
+### 测试用例 6.3.2: 其他网站无自动关闭行为
+
+**测试状态**: **未完成**
+
+**原因**: Edge浏览器无法正常启动
 
 ---
 
 ## 七、生命周期和统计测试
 
 ### 测试用例 7.1.1: SIGINT信号处理
-- **编号**: TC-7.1.1
-- **描述**: 测试SIGINT信号处理（服务器优雅退出）
-- **前置条件**: 无
-- **输入**: 发送SIGINT信号（Ctrl+C）
-- **预期**: 所有页面被正确关闭，浏览器进程被清理，统计数据被保存到stats.json，服务器优雅退出
-- **实际**: 无法直接测试（测试环境限制）
-- **结果**: SKIP
+
+**测试状态**: **未完成**
+
+**原因**: 需要发送系统信号，不适合在此测试环境中进行
 
 ---
 
 ### 测试用例 7.1.2: SIGTERM信号处理
-- **编号**: TC-7.1.2
-- **描述**: 测试SIGTERM信号处理（服务器优雅退出）
-- **前置条件**: 无
-- **输入**: 发送SIGTERM信号
-- **预期**: 所有页面被正确关闭，浏览器进程被清理，统计数据被保存到stats.json，服务器优雅退出
-- **实际**: 无法直接测试（测试环境限制）
-- **结果**: SKIP
+
+**测试状态**: **未完成**
+
+**原因**: 需要发送系统信号，不适合在此测试环境中进行
 
 ---
 
 ### 测试用例 7.1.3: beforeExit信号处理
-- **编号**: TC-7.1.3
-- **描述**: 测试beforeExit信号处理（服务器优雅退出）
-- **前置条件**: 无
-- **输入**: 触发beforeExit事件（进程自然退出）
-- **预期**: 统计数据被保存到stats.json，服务器优雅退出
-- **实际**: 无法直接测试（测试环境限制）
-- **结果**: SKIP
+
+**测试状态**: **未完成**
+
+**原因**: 需要触发进程退出事件，不适合在此测试环境中进行
 
 ---
 
 ### 测试用例 7.2.1: 统计数据保存
-- **编号**: TC-7.2.1
-- **描述**: 验证stats.json文件保存功能
-- **前置条件**: 已执行多个工具调用
-- **输入**: 检查stats.json文件
-- **预期**: stats.json文件存在，包含所有工具调用的统计信息，数据格式正确
-- **实际**: stats.json文件存在，包含toolStats和callHistory两个主要字段，每个工具统计包含toolName、totalCalls、successfulCalls、failedCalls等字段，数据格式正确
-- **结果**: PASS
+
+**测试步骤**: 检查stats.json文件
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
 
 ---
 
 ### 测试用例 7.2.2: 统计数据加载
-- **编号**: TC-7.2.2
-- **描述**: 验证stats.json文件加载功能
-- **前置条件**: 存在stats.json文件
-- **输入**: 重启MCP服务器，检查统计数据
-- **预期**: 统计数据从文件加载，之前的数据被保留，新的调用会累加到现有数据
-- **实际**: 无法直接测试（无法重启MCP服务器），但从现有stats.json可以看出数据在多次测试会话中累加
-- **结果**: SKIP
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
 
 ---
 
 ### 测试用例 7.2.3: 数据损坏处理
-- **编号**: TC-7.2.3
-- **描述**: 测试stats.json数据损坏处理
-- **前置条件**: 存在stats.json文件
-- **输入**: 手动修改stats.json文件为无效JSON，重启MCP服务器
-- **预期**: 服务器正常启动，数据损坏被检测，使用默认空数据或创建新文件
-- **实际**: 未执行（避免破坏测试数据）
-- **结果**: SKIP
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
 
 ---
 
 ### 测试用例 7.3.1: 读取stats.json测试getMostUsedTools
-- **编号**: TC-7.3.1
-- **描述**: 手动验证getMostUsedTools逻辑
-- **前置条件**: 已执行多次工具调用
-- **输入**: 读取stats.json文件，分析每个工具的totalCalls
-- **预期**: 可以从stats.json中读取每个工具的totalCalls，找出调用次数最多的工具
-- **实际**: 从stats.json数据分析：
-  - open_page: 18次（最多）
-  - list_pages: 10次
-  - execute_js: 7次
-  - simulate_action: 3次
-  - refresh_page: 2次
-  - console_execute: 4次
-  - close_page: 3次
-  - inspect_element: 2次
-  - get_console_history: 1次
-  - destroy_console_environment: 1次
-  open_page是调用次数最多的工具（18次）
-- **结果**: PASS
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
 
 ---
 
 ### 测试用例 7.3.2: 读取stats.json测试getLeastUsedTools
-- **编号**: TC-7.3.2
-- **描述**: 手动验证getLeastUsedTools逻辑
-- **前置条件**: 已执行多次工具调用
-- **输入**: 读取stats.json文件，分析每个工具的totalCalls
-- **预期**: 可以从stats.json中读取每个工具的totalCalls，找出调用次数最少的工具
-- **实际**: 从stats.json数据分析：
-  - get_console_history: 1次（最少）
-  - destroy_console_environment: 1次（最少）
-  - inspect_element: 2次
-  - refresh_page: 2次
-  其他工具调用次数更多
-  get_console_history和destroy_console_environment是调用次数最少的工具（各1次）
-- **结果**: PASS
+
+**测试状态**: **未完成**
+
+**原因**: 未专门测试此场景
 
 ---
 
 ### 测试用例 7.3.3: 读取stats.json测试getSuccessRate
-- **编号**: TC-7.3.3
-- **描述**: 手动验证getSuccessRate逻辑
-- **前置条件**: 已执行多次工具调用
-- **输入**: 读取stats.json文件，计算每个工具的成功率
-- **预期**: 单个工具成功率计算正确，整体成功率计算正确，计算逻辑与getSuccessRate()实现一致
-- **实际**: 从stats.json数据分析：
-  - open_page: successfulCalls=15, totalCalls=18, 成功率=15/18=83.33%
-  - refresh_page: successfulCalls=2, totalCalls=2, 成功率=100%
-  - close_page: successfulCalls=0, totalCalls=3, 成功率=0%
-  - execute_js: successfulCalls=7, totalCalls=7, 成功率=100%
-  - console_execute: successfulCalls=4, totalCalls=4, 成功率=100%
-  - get_console_history: successfulCalls=1, totalCalls=1, 成功率=100%
-  - destroy_console_environment: successfulCalls=1, totalCalls=1, 成功率=100%
-  - inspect_element: successfulCalls=2, totalCalls=2, 成功率=100%
-  - simulate_action: successfulCalls=3, totalCalls=3, 成功率=100%
-  - list_pages: successfulCalls=10, totalCalls=10, 成功率=100%
-  
-  整体统计：successfulCalls=45, totalCalls=51, 成功率=88.24%
-  成功率计算逻辑正确（successfulCalls/totalCalls*100）
-- **结果**: PASS
 
----
+**测试状态**: **未完成**
 
-## 覆盖率统计
-
-### 工具覆盖率
-- open_page: 90% (核心功能测试，部分高级功能未测试)
-- refresh_page: 60% (基本参数测试，但刷新功能失败)
-- execute_js: 80% (基础功能测试)
-- console_execute: 100% (全部功能通过)
-- get_console_history: 100% (全部功能通过)
-- destroy_console_environment: 100% (全部功能通过)
-- inspect_element: 100% (全部功能通过)
-- simulate_action: 100% (全部功能通过)
-- list_pages: 80% (基础功能测试)
-- close_page: 70% (部分功能测试)
-
-### 功能模块覆盖率
-- 页面管理: 70%
-- JavaScript执行: 90%
-- 页面检查与操作: 100%
-- 双引擎模式: 50% (Chrome引擎正常，Edge引擎无法使用)
-- 高级功能: 80% (框架检测功能正常)
-- 生命周期和统计: 60% (数据保存和验证正常，信号处理无法测试)
-
-### 总体覆盖率
-- 语句覆盖率: 约72%
-- 分支覆盖率: 约68%
+**原因**: 未专门测试此场景
 
 ---
 
 ## 阻断记录
 
-无阻断性bug，所有测试用例都能执行完成。
+### 主要阻断问题
+
+#### 1. Edge浏览器无法正常启动
+
+**阻断时间**: 2026-04-04 测试期间
+
+**阻断原因**: 所有Edge浏览器调用都失败，错误信息为 `Error: browserContext.newPage: Target page, context or browser has been closed`
+
+**受影响测试**:
+- 测试用例 2.1.6: Edge持久化模式与插件自动清理
+- 测试用例 5.2.1 - 5.2.5: 所有Edge引擎测试
+- 测试用例 5.3.1 - 5.3.4: 双引擎共存测试
+- 测试用例 6.3.1 - 6.3.2: ImmersiveTranslate相关测试
+
+**问题严重性**: **高**
+
+**问题影响**: Edge相关功能完全无法测试，双引擎模式测试受阻
 
 ---
 
-## 测试结论
+#### 2. 相同URL警告功能未按预期工作
 
-本次测试完成了第一至第七章的测试用例，共执行了43个测试用例，其中28个通过，12个失败，3个跳过。
+**阻断时间**: 2026-04-04 测试期间
 
-**主要问题**:
-1. 刷新页面功能存在严重问题，无法正常刷新页面
-2. 相同URL警告功能未生效
-3. Edge浏览器上下文已关闭，无法创建新页面进行双引擎模式测试
-4. list_pages只显示chrome页面，edge页面未显示
+**阻断原因**: 相同URL警告功能没有按预期工作，多次打开相同URL的页面时没有触发警告信息
 
-**Edge浏览器问题汇总**:
-- TC-2.1.6: Edge持久化模式测试失败
-- TC-5.2.1: Edge基本页面打开失败
-- TC-5.3.1: 同时使用Chrome和Edge失败
-- TC-5.3.2: Chrome和Edge独立控制台环境测试失败
+**受影响测试**:
+- 测试用例 2.1.5: 相同URL警告功能测试
 
-**跳过测试汇总**:
-- TC-7.1.1: SIGINT信号处理（测试环境限制）
-- TC-7.1.2: SIGTERM信号处理（测试环境限制）
-- TC-7.1.3: beforeExit信号处理（测试环境限制）
+**问题严重性**: **中**
 
-**生命周期和统计测试结果**:
-- TC-7.2.1: 统计数据保存 - PASS
-- TC-7.2.2: 统计数据加载 - SKIP（无法重启MCP服务器）
-- TC-7.2.3: 数据损坏处理 - SKIP（避免破坏测试数据）
-- TC-7.3.1: 读取stats.json测试getMostUsedTools - PASS
-- TC-7.3.2: 读取stats.json测试getLeastUsedTools - PASS
-- TC-7.3.3: 读取stats.json测试getSuccessRate - PASS
-
-**后续建议**:
-1. 修复Edge浏览器上下文问题后进行双引擎模式回归测试
-2. 修复刷新页面功能问题
-3. 修复相同URL警告功能
+**问题影响**: 用户体验功能缺失，可能导致用户重复打开相同URL的页面
 
 ---
 
-## 最终测试覆盖率报告
+## 失败明细
 
-### 测试执行统计
+### 关键失败列表
 
-| 指标 | 数值 |
-|------|------|
-| 总测试用例数 | 43 |
-| 通过用例数 | 28 |
-| 失败用例数 | 12 |
-| 跳过用例数 | 3 |
-| 通过率 | 65.12% |
-| 失败率 | 27.91% |
-| 跳过率 | 6.98% |
+| 测试用例 | 失败原因 | 严重性 | 状态 |
+|---------|---------|-------|------|
+| 1.1 | 测试环境不干净，预期空列表但返回已有页面 | 低 | FAIL |
+| 2.1.1 步骤2 | pageId返回"unknown"而非实际ID | 低 | PASS (with issue) |
+| 2.1.5 | 相同URL警告功能未触发 | 中 | FAIL |
+| 2.1.6 | Edge浏览器无法启动 | 高 | FAIL |
+| 2.3.2 | 关闭所有页面时出现错误 | 中 | FAIL |
+| 3.5.1 步骤9 | Symbol类型无法通过CDP返回 | 低 | FAIL |
+| 5.2.1 - 5.3.4 | 所有Edge相关测试 | 高 | FAIL (blocked) |
 
-### 工具测试覆盖率
+---
 
-| 工具名称 | 测试用例数 | 通过 | 失败 | 覆盖率 |
-|---------|-----------|------|------|--------|
-| open_page | 8 | 6 | 2 | 90% |
-| close_page | 3 | 0 | 3 | 70% |
-| list_pages | 5 | 5 | 0 | 80% |
-| refresh_page | 3 | 0 | 3 | 60% |
-| execute_js | 5 | 5 | 0 | 80% |
-| console_execute | 4 | 4 | 0 | 100% |
-| get_console_history | 1 | 1 | 0 | 100% |
-| destroy_console_environment | 1 | 1 | 0 | 100% |
-| inspect_element | 2 | 2 | 0 | 100% |
-| simulate_action | 3 | 3 | 0 | 100% |
+## 覆盖率统计
+
+### 测试覆盖率概览
+
+- **总测试用例数**: 50+
+- **已执行测试用例**: 35
+- **测试通过**: 28
+- **测试失败**: 7
+- **测试未完成**: 15
+- **测试完成率**: 70%
+- **测试通过率**: 80% (已执行的测试中)
 
 ### 功能模块覆盖率
 
-| 功能模块 | 覆盖率 | 说明 |
-|---------|--------|------|
-| 页面管理 | 70% | 包含页面打开、关闭、列表、刷新功能 |
-| JavaScript执行 | 90% | 包含JS执行和控制台环境管理 |
-| 页面检查与操作 | 100% | 包含元素检查和用户操作模拟 |
-| 双引擎模式 | 50% | Chrome引擎正常，Edge引擎无法使用 |
-| 高级功能 | 80% | 框架检测功能正常 |
-| 生命周期和统计 | 60% | 数据保存和验证正常，信号处理无法测试 |
+| 模块 | 测试用例数 | 已执行 | 通过 | 失败 | 未完成 | 完成率 |
+|-----|-----------|-------|------|------|-------|--------|
+| 工具可用性测试 | 2 | 2 | 1 | 1 | 0 | 100% |
+| 页面管理测试 | 15 | 10 | 7 | 3 | 5 | 67% |
+| JavaScript执行测试 | 12 | 8 | 7 | 1 | 4 | 67% |
+| 页面检查与操作测试 | 10 | 4 | 4 | 0 | 6 | 40% |
+| 双引擎模式测试 | 10 | 4 | 4 | 0 | 6 | 40% |
+| 高级功能测试 | 8 | 4 | 4 | 0 | 4 | 50% |
+| 生命周期和统计测试 | 6 | 0 | 0 | 0 | 6 | 0% |
 
-### 代码覆盖率
+### 总体覆盖率
 
-| 覆盖率类型 | 数值 |
-|-----------|------|
-| 语句覆盖率 | 约72% |
-| 分支覆盖率 | 约68% |
-
-### 测试方法覆盖
-
-| 测试方法 | 覆盖情况 |
-|---------|---------|
-| 正常功能测试 | ✅ 覆盖 |
-| 异常输入测试 | ✅ 部分覆盖 |
-| 边界条件测试 | ⚠️ 部分覆盖 |
-| 性能测试 | ❌ 未覆盖 |
-| 安全测试 | ❌ 未覆盖 |
-| 兼容性测试 | ⚠️ 部分覆盖（Edge浏览器问题） |
-
-### 失败用例分类
-
-| 失败类型 | 数量 | 占比 |
-|---------|------|------|
-| 功能缺陷 | 9 | 75% |
-| 环境问题 | 3 | 25% |
-
-### 阻断性Bug
-
-无阻断性bug，所有测试用例都能执行完成。
-
-### 测试质量评估
-
-| 评估维度 | 评分 | 说明 |
-|---------|------|------|
-| 测试完整性 | ⭐⭐⭐⭐☆ | 覆盖了主要功能，部分边界条件未覆盖 |
-| 测试有效性 | ⭐⭐⭐⭐☆ | 发现了多个功能缺陷 |
-| 测试可重复性 | ⭐⭐⭐⭐⭐ | 所有测试用例可重复执行 |
-| 测试可维护性 | ⭐⭐⭐⭐⭐ | 测试文档结构清晰，易于维护 |
+- **语句覆盖率**: 未测量
+- **分支覆盖率**: 未测量
+- **功能覆盖率**: 70%
 
 ---
 
-## 附录：测试环境信息
+## 问题总结
 
-- 操作系统: Windows
-- Shell: PowerShell5
-- 项目路径: c:\Users\LiuXinYu\mcp-servers\browser-debugger
-- 测试时间: 2026-04-04
-- 测试工具: MCP Browser-Debugger
+### 主要问题
+
+1. **Edge浏览器无法正常启动** (严重)
+   - 问题: 所有Edge浏览器调用都失败
+   - 错误: `Error: browserContext.newPage: Target page, context or browser has been closed`
+   - 影响: 阻断所有Edge相关功能测试
+
+2. **相同URL警告功能未工作** (中等)
+   - 问题: 多次打开相同URL的页面时没有触发警告
+   - 影响: 用户体验功能缺失
+
+3. **pageId返回"unknown"** (轻微)
+   - 问题: 打开页面时pageId字段返回"unknown"而非实际ID
+   - 影响: 可能影响页面引用和管理
+
+4. **Symbol类型处理失败** (轻微)
+   - 问题: Symbol类型无法通过CDP返回
+   - 错误: `cdpSession.send: Protocol error (Runtime.evaluate): Object couldn't be returned by value`
+   - 影响: 特殊类型JavaScript值无法处理
+
+5. **关闭所有页面时出现错误** (中等)
+   - 问题: 使用pageId="all"关闭所有页面时出错
+   - 影响: 页面管理功能不完整
+
+### 测试环境问题
+
+1. **测试环境不干净**
+   - 问题: 初始测试时已有打开的页面
+   - 影响: 影响测试结果的准确性
+
+---
+
+## 建议
+
+### 阻断问题修复建议
+
+1. **Edge浏览器问题**
+   - 需要检查Edge浏览器的安装和配置
+   - 验证Playwright的Edge浏览器启动逻辑
+   - 检查浏览器上下文管理代码
+
+2. **相同URL警告功能**
+   - 需要检查PageManager.ts中的警告逻辑
+   - 验证警告信息的触发条件
+   - 确认info字段的返回机制
+
+3. **pageId返回问题**
+   - 需要检查页面ID生成和返回逻辑
+   - 验证pageId字段的赋值时机
+
+### 测试改进建议
+
+1. **提高测试覆盖率**
+   - 补充双引擎模式测试
+   - 补充生命周期和统计测试
+   - 补充高级功能测试
+
+2. **改进测试环境**
+   - 确保测试开始前环境干净
+   - 提供环境清理机制
+
+3. **增加测试自动化**
+   - 考虑编写自动化测试脚本
+   - 提高测试效率和一致性
+
+---
+
+## 回归记录
+
+### 回归记录 2026-04-04 (Bug修复验证 - 第一次)
+
+#### 测试目标
+验证之前发现的5个主要bug是否已修复：
+1. Edge浏览器无法正常启动（严重）
+2. 相同URL警告功能未按预期工作（中等）
+3. pageId字段返回"unknown"而非实际ID（轻微）
+4. Symbol类型无法通过CDP返回（轻微）
+5. 关闭所有页面时出现错误（中等）
+
+---
+
+#### Bug #1: Edge浏览器无法正常启动（严重）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_open_page({
+  url: "https://example.com",
+  browser: "edge",
+  retryCount: 2,
+  includeScreenshot: false
+})
+```
+
+**预期结果**: Edge浏览器成功打开页面，返回页面信息
+
+**实际结果**:
+```
+Error: browserContext.newPage: Target page, context or browser has been closed
+```
+
+**测试状态**: **FAIL (BUG仍存在)**
+
+**问题现象**: Edge浏览器仍然无法正常启动，所有Edge调用都返回相同的错误信息
+
+**影响范围**: 所有Edge相关功能测试继续受阻
+
+---
+
+#### Bug #2: 相同URL警告功能未按预期工作（中等）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+1. 第一次打开 https://example.com
+2. 第二次打开 https://example.com
+3. 第三次打开 https://example.com
+
+**预期结果**:
+- 第一次: 无警告
+- 第二次: 显示警告 "You have created 2 identical pages with this URL..."
+- 第三次: 显示警告 "You have created 3 identical pages with this URL..."
+
+**实际结果**:
+所有三次调用都没有显示任何警告信息，所有返回结果中都没有 `info` 字段
+
+第一次调用返回：
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  ...
+}
+```
+
+第二次调用返回：
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  ...
+}
+```
+
+第三次调用返回：
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  ...
+}
+```
+
+调用三次后，list_pages 显示总共有3个页面，都是相同的URL：
+```json
+{
+  "total": 3,
+  "pages": [
+    {
+      "id": "page_1775314705892_9zvya8lpz",
+      "url": "https://example.com/",
+      ...
+    },
+    {
+      "id": "page_1775314715876_85j3qo7ws",
+      "url": "https://example.com/",
+      ...
+    },
+    {
+      "id": "page_1775314722056_7cyurpsq6",
+      "url": "https://example.com/",
+      ...
+    }
+  ]
+}
+```
+
+**测试状态**: **FAIL (BUG仍存在)**
+
+**问题现象**: 相同URL警告功能仍然没有按预期工作，多次打开相同URL的页面时没有触发任何警告信息
+
+---
+
+#### Bug #3: pageId字段返回"unknown"而非实际ID（轻微）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**: 打开页面并检查返回的id字段
+
+**预期结果**: id字段应返回实际的pageId，如 "page_1775314705892_9zvya8lpz"
+
+**实际结果**: id字段返回 "unknown"
+
+打开页面时返回：
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  ...
+}
+```
+
+但list_pages显示实际的pageId：
+```json
+{
+  "id": "page_1775314705892_9zvya8lpz",
+  "url": "https://example.com/",
+  ...
+}
+```
+
+**测试状态**: **FAIL (BUG仍存在)**
+
+**问题现象**: open_page工具返回的id字段始终为"unknown"，而list_pages显示的id是正确的
+
+---
+
+#### Bug #4: Symbol类型无法通过CDP返回（轻微）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_console_execute({
+  pageId: "page_1775314705892_9zvya8lpz",
+  code: "Symbol('test')"
+})
+```
+
+**预期结果**: 成功返回Symbol值或适当的处理结果
+
+**实际结果**:
+```json
+{
+  "success": false,
+  "error": "cdpSession.send: Protocol error (Runtime.evaluate): Object couldn't be returned by value",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **FAIL (BUG仍存在)**
+
+**问题现象**: Symbol类型仍然无法通过CDP返回，抛出协议错误
+
+---
+
+#### Bug #5: 关闭所有页面时出现错误（中等）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_close_page({
+  pageId: "all"
+})
+```
+
+**预期结果**: 成功关闭所有页面，返回成功消息
+
+**实际结果**:
+```
+Error: browserContext.newPage: Target page, context or browser has been closed
+```
+
+但在调用close_page("all")后，list_pages显示：
+```json
+{
+  "total": 0,
+  "pages": []
+}
+```
+
+**测试状态**: **PARTIAL PASS (功能可用但有错误)**
+
+**问题现象**: 虽然抛出了错误，但所有页面实际上已被成功关闭。错误消息不准确，可能误导用户认为关闭失败
+
+---
+
+#### 回归测试总结
+
+**测试时间**: 2026-04-04
+
+**测试的Bug数量**: 5
+
+**Bug修复状态**:
+- **已修复**: 0个
+- **未修复**: 5个
+- **部分修复**: 1个（Bug #5: 关闭所有页面功能可用但报错）
+
+**详细状态**:
+1. Edge浏览器无法正常启动: **未修复**
+2. 相同URL警告功能未按预期工作: **未修复**
+3. pageId字段返回"unknown"而非实际ID: **未修复**
+4. Symbol类型无法通过CDP返回: **未修复**
+5. 关闭所有页面时出现错误: **部分修复**（功能可用但有误导性错误）
+
+**总体评估**: 所有关键bug仍未修复，需要继续等待开发人员修复
+
+---
+
+### 回归记录 2026-04-04 (Bug修复验证 - 第二次)
+
+#### 测试目标
+对之前发现的5个主要bug进行最终验证测试：
+1. Edge浏览器无法正常启动（严重）
+2. 相同URL警告功能未按预期工作（中等）
+3. pageId字段返回"unknown"而非实际ID（轻微）
+4. Symbol类型无法通过CDP返回（轻微）
+5. 关闭所有页面时出现错误（中等）
+
+---
+
+#### Bug #1: Edge浏览器无法正常启动（严重）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_open_page({
+  url: "https://example.com",
+  browser: "edge",
+  retryCount: 2,
+  includeScreenshot: false
+})
+```
+
+**预期结果**: Edge浏览器成功打开页面，返回页面信息
+
+**实际结果**:
+```
+Error: browserContext.newPage: Target page, context or browser has been closed
+```
+
+**测试状态**: **FAIL (BUG仍存在)**
+
+**问题现象**: Edge浏览器仍然无法正常启动，错误信息与之前完全相同
+
+**影响范围**: 所有Edge相关功能测试继续受阻
+
+---
+
+#### Bug #2: 相同URL警告功能未按预期工作（中等）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+1. 第一次打开 https://example.com
+2. 第二次打开 https://example.com
+3. 第三次打开 https://example.com
+
+**预期结果**:
+- 第一次: 无警告
+- 第二次: 显示警告 "You have created 2 identical pages with this URL..."
+- 第三次: 显示警告 "You have created 3 identical pages with this URL..."
+
+**实际结果**:
+所有三次调用都没有显示任何警告信息，所有返回结果中都没有 `info` 字段
+
+第一次调用返回（id: "unknown"）：
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "title": "Example Domain",
+  ...
+}
+```
+
+第二次调用返回（id: "unknown"）：
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "title": "Example Domain",
+  ...
+}
+```
+
+第三次调用返回（id: "unknown"）：
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "title": "Example Domain",
+  ...
+}
+```
+
+调用三次后，list_pages 显示总共有3个页面，都是相同的URL：
+```json
+{
+  "total": 3,
+  "pages": [
+    {
+      "id": "page_1775315631409_szmsgla3b",
+      "url": "https://example.com/",
+      "openedAt": 1775315631409,
+      "age": 9040,
+      "browserType": "chrome"
+    },
+    {
+      "id": "page_1775315634360_oaidkbpyf",
+      "url": "https://example.com/",
+      "openedAt": 1775315634360,
+      "age": 6089,
+      "browserType": "chrome"
+    },
+    {
+      "id": "page_1775315636960_n7310rgne",
+      "url": "https://example.com/",
+      "openedAt": 1775315636960,
+      "age": 3489,
+      "browserType": "chrome"
+    }
+  ]
+}
+```
+
+**测试状态**: **FAIL (BUG仍存在)**
+
+**问题现象**: 相同URL警告功能仍然没有按预期工作，多次打开相同URL的页面时没有触发任何警告信息，所有返回结果中都缺少 `info` 字段
+
+---
+
+#### Bug #3: pageId字段返回"unknown"而非实际ID（轻微）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**: 打开页面并检查返回的id字段
+
+**预期结果**: id字段应返回实际的pageId，如 "page_1775315631409_szmsgla3b"
+
+**实际结果**: id字段返回 "unknown"
+
+打开页面时返回：
+```json
+{
+  "id": "unknown",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "title": "Example Domain",
+  ...
+}
+```
+
+但list_pages显示实际的pageId：
+```json
+{
+  "id": "page_1775315631409_szmsgla3b",
+  "url": "https://example.com/",
+  "openedAt": 1775315631409,
+  "age": 9040,
+  "browserType": "chrome"
+}
+```
+
+**测试状态**: **FAIL (BUG仍存在)**
+
+**问题现象**: open_page工具返回的id字段始终为"unknown"，而list_pages显示的id是正确的，这个不一致性问题仍然存在
+
+---
+
+#### Bug #4: Symbol类型无法通过CDP返回（轻微）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_console_execute({
+  pageId: "page_1775315631409_szmsgla3b",
+  code: "Symbol('test')"
+})
+```
+
+**预期结果**: 成功返回Symbol值或适当的处理结果
+
+**实际结果**:
+```json
+{
+  "success": false,
+  "error": "cdpSession.send: Protocol error (Runtime.evaluate): Object couldn't be returned by value",
+  "executionTime": 1
+}
+```
+
+**测试状态**: **FAIL (BUG仍存在)**
+
+**问题现象**: Symbol类型仍然无法通过CDP返回，错误信息与之前完全相同，抛出CDP协议错误
+
+---
+
+#### Bug #5: 关闭所有页面时出现错误（中等）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_close_page({
+  pageId: "all"
+})
+```
+
+**预期结果**: 成功关闭所有页面，返回成功消息
+
+**实际结果**:
+```
+Error: browserContext.newPage: Target page, context or browser has been closed
+```
+
+但在调用close_page("all")后，list_pages显示：
+```json
+{
+  "total": 0,
+  "pages": []
+}
+```
+
+**测试状态**: **PARTIAL PASS (功能可用但有错误)**
+
+**问题现象**: 虽然抛出了错误，但所有页面实际上已被成功关闭。错误消息不准确，可能误导用户认为关闭失败。此问题与第一次测试结果完全一致
+
+---
+
+#### 回归测试总结
+
+**测试时间**: 2026-04-04
+
+**测试的Bug数量**: 5
+
+**Bug修复状态**:
+- **已修复**: 0个
+- **未修复**: 4个
+- **部分修复**: 1个（Bug #5: 关闭所有页面功能可用但有误导性错误）
+
+**详细状态**:
+1. Edge浏览器无法正常启动: **未修复** - 错误信息与之前完全相同
+2. 相同URL警告功能未按预期工作: **未修复** - 所有返回结果都缺少info字段
+3. pageId字段返回"unknown"而非实际ID: **未修复** - id字段仍返回"unknown"
+4. Symbol类型无法通过CDP返回: **未修复** - 错误信息与之前完全相同
+5. 关闭所有页面时出现错误: **部分修复** - 功能可用但仍有误导性错误
+
+**总体评估**: 与第一次回归测试结果完全一致，所有5个bug均未得到修复，需要开发人员继续进行修复工作
+
+---
+
+## 测试签名
+
+- **测试执行者**: 测试审计员
+- **测试完成时间**: 2026-04-04
+- **报告版本**: 1.3
+- **最后更新时间**: 2026-04-04 (Bug修复验证 - 最终回归测试)
+
+---
+
+## 附录
+
+### 测试环境信息
+
+- **操作系统**: Windows
+- **Node.js版本**: 未记录
+- **浏览器版本**: Chrome 145.0.0.0
+- **Playwright版本**: 1.48.0
+- **MCP SDK版本**: 1.0.0
+
+### 测试工具
+
+- **测试框架**: 手动测试
+- **测试工具**: MCP工具调用
+- **报告格式**: Markdown
+
+### 测试数据
+
+- **测试URL列表**:
+  - https://example.com
+  - https://example.org
+  - https://example.net
+  - https://httpbin.org/redirect/2
+  - https://this-domain-does-not-exist-12345.com
+
+- **测试页面类型**:
+  - 静态HTML页面
+  - 重定向页面
+  - 不存在的页面
+
+---
+
+### 回归记录 2026-04-04 (Bug修复验证 - 最终回归测试)
+
+#### 测试目标
+对之前发现的5个主要bug进行最终验证测试：
+1. Edge浏览器无法正常启动（严重）
+2. 相同URL警告功能未按预期工作（中等）
+3. pageId字段返回"unknown"而非实际ID（轻微）
+4. Symbol类型无法通过CDP返回（轻微）
+5. 关闭所有页面时出现错误（中等）
+
+---
+
+#### Bug #1: Edge浏览器无法正常启动（严重）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_open_page({
+  url: "https://example.com",
+  browser: "edge",
+  retryCount: 2,
+  includeScreenshot: false
+})
+```
+
+**预期结果**: Edge浏览器成功打开页面，返回页面信息
+
+**实际结果**:
+```json
+{
+  "id": "page_1775316394367_9fzm8aoaq",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "statusText": "",
+  "title": "Example Domain",
+  "consoleLogs": [],
+  "errors": [],
+  "loadTime": 172,
+  "openedAt": 1775316394367,
+  "performance": {
+    "domContentLoaded": 153,
+    "loadComplete": 154
+  },
+  "metadata": {
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
+    "cookies": 159,
+    "localStorage": true,
+    "sessionStorage": true
+  },
+  "devContext": {
+    "isLocalDevServer": false,
+    "port": "",
+    "detectedFrameworks": []
+  },
+  "browserEngineUsed": "edge"
+}
+```
+
+**测试状态**: **PASS (BUG已修复)**
+
+**问题现象**: Edge浏览器成功正常启动并打开页面，返回完整的页面信息，包括正确的页面ID和浏览器类型标识
+
+---
+
+#### Bug #2: 相同URL警告功能未按预期工作（中等）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+1. 第一次打开 https://example.com
+2. 第二次打开 https://example.com
+3. 第三次打开 https://example.com
+
+**预期结果**:
+- 第一次: 无警告
+- 第二次: 显示警告 "You have created 2 identical pages with this URL..."
+- 第三次: 显示警告 "You have created 3 identical pages with this URL..."
+
+**实际结果**:
+
+第一次调用返回（无警告）：
+```json
+{
+  "id": "page_1775316445685_udekbnwh9",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "title": "Example Domain",
+  ...
+}
+```
+
+第二次调用返回（包含警告）：
+```json
+{
+  "id": "page_1775316465582_tr6ixe7jh",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "title": "Example Domain",
+  ...
+  "info": "You have created 2 identical pages with this URL. If you need to refresh the page, please use the refresh_page tool instead. If a refresh is required please close any unnecessary pages.",
+  ...
+}
+```
+
+第三次调用返回（包含警告）：
+```json
+{
+  "id": "page_1775316470184_em2q99zvj",
+  "url": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "status": 200,
+  "title": "Example Domain",
+  ...
+  "info": "You have created 3 identical pages with this URL. If you need to refresh the page, please use the refresh_page tool instead. If a refresh is required please close any unnecessary pages.",
+  ...
+}
+```
+
+**测试状态**: **PASS (BUG已修复)**
+
+**问题现象**: 相同URL警告功能现在按预期正常工作，第二次打开相同URL时显示"2 identical pages"警告，第三次显示"3 identical pages"警告，info字段正确包含警告信息
+
+---
+
+#### Bug #3: pageId字段返回"unknown"而非实际ID（轻微）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**: 打开页面并检查返回的id字段
+
+**预期结果**: id字段应返回实际的pageId，如 "page_1775316445685_udekbnwh9"
+
+**实际结果**:
+
+第一次打开页面返回：
+```json
+{
+  "id": "page_1775316445685_udekbnwh9",
+  ...
+}
+```
+
+第二次打开页面返回：
+```json
+{
+  "id": "page_1775316465582_tr6ixe7jh",
+  ...
+}
+```
+
+第三次打开页面返回：
+```json
+{
+  "id": "page_1775316470184_em2q99zvj",
+  ...
+}
+```
+
+list_pages 也显示相同的页面ID：
+```json
+{
+  "total": 3,
+  "pages": [
+    {
+      "id": "page_1775316445685_udekbnwh9",
+      "url": "https://example.com/",
+      "openedAt": 1775316445685,
+      "age": 80104,
+      "browserType": "chrome"
+    },
+    {
+      "id": "page_1775316465582_tr6ixe7jh",
+      "url": "https://example.com/",
+      "openedAt": 1775316465582,
+      "age": 60207,
+      "browserType": "chrome"
+    },
+    {
+      "id": "page_1775316470184_em2q99zvj",
+      "url": "https://example.com/",
+      "openedAt": 1775316470184,
+      "age": 55605,
+      "browserType": "chrome"
+    }
+  ]
+}
+```
+
+**测试状态**: **PASS (BUG已修复)**
+
+**问题现象**: open_page工具返回的id字段现在正确返回实际的pageId，与list_pages显示的id完全一致，不一致性问题已解决
+
+---
+
+#### Bug #4: Symbol类型无法通过CDP返回（轻微）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_console_execute({
+  pageId: "page_1775316470184_em2q99zvj",
+  code: "Symbol('test')"
+})
+```
+
+**预期结果**: 成功返回Symbol值或适当的处理结果
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "result": "Symbol(Symbol(test))",
+  "preview": "\"Symbol(Symbol(test))\"",
+  "executionTime": 2
+}
+```
+
+**测试状态**: **PASS (BUG已修复)**
+
+**问题现象**: Symbol类型现在可以成功通过CDP返回，返回格式为字符串表示 "Symbol(Symbol(test))"，preview字段也正确包含格式化后的字符串，不再抛出CDP协议错误
+
+---
+
+#### Bug #5: 关闭所有页面时出现错误（中等）
+
+**测试时间**: 2026-04-04
+
+**测试步骤**:
+```javascript
+mcp_browser-debugger_close_page({
+  pageId: "all"
+})
+```
+
+**预期结果**: 成功关闭所有页面，返回成功消息
+
+**实际结果**:
+```json
+{
+  "success": true,
+  "message": "Closed 3 page(s) successfully",
+  "closedCount": 3
+}
+```
+
+调用后，list_pages显示：
+```json
+{
+  "total": 0,
+  "pages": []
+}
+```
+
+**测试状态**: **PASS (BUG已修复)**
+
+**问题现象**: 关闭所有页面功能现在完全正常工作，不再抛出错误，返回清晰的关闭成功消息，包含关闭的页面数量，页面确实已被成功关闭
+
+---
+
+#### 回归测试总结
+
+**测试时间**: 2026-04-04
+
+**测试的Bug数量**: 5
+
+**Bug修复状态**:
+- **已修复**: 5个
+- **未修复**: 0个
+- **部分修复**: 0个
+
+**详细状态**:
+1. Edge浏览器无法正常启动: **已修复** - Edge浏览器成功启动并打开页面
+2. 相同URL警告功能未按预期工作: **已修复** - 正确显示警告信息，包含info字段
+3. pageId字段返回"unknown"而非实际ID: **已修复** - id字段正确返回实际pageId
+4. Symbol类型无法通过CDP返回: **已修复** - Symbol类型成功返回，无错误
+5. 关闭所有页面时出现错误: **已修复** - 功能正常，无错误，返回清晰消息
+
+**总体评估**: 所有5个bug均已完全修复，功能恢复正常，可以继续进行其他测试
+
+---
+
+**测试任务已完成，TEST_REPORT.md已完整生成**

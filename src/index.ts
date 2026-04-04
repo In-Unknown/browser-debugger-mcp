@@ -382,8 +382,7 @@ async function main() {
           const startTime = Date.now();
           try {
             if (pageId === 'all') {
-              await pageManager.closeAllPages();
-              await pageManager.cleanup();
+              const closedCount = await pageManager.closeAllPages();
               const executionTime = Date.now() - startTime;
               statsManager.recordCall('close_page', true, executionTime, suggestion);
               return {
@@ -392,7 +391,8 @@ async function main() {
                     type: 'text',
                     text: JSON.stringify({
                       success: true,
-                      message: 'Browser context closed successfully'
+                      message: `Closed ${closedCount} page(s) successfully`,
+                      closedCount
                     }, null, 2)
                   }
                 ]
