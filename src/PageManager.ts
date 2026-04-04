@@ -484,8 +484,55 @@ export class PageManager {
         if (win.React || win.ReactDOM || document.querySelector('[data-reactroot]')) {
           frameworks.push('React');
         }
-        if (win.Vue || document.querySelector('[data-v-]')) {
+        // Enhanced Vue.js detection with multiple strategies
+        if (win.Vue || win.Vue2 || win.Vue3 || 
+            document.querySelector('[data-v-]') || 
+            document.querySelector('[data-vue-]') ||
+            document.querySelector('.vue-component')) {
           frameworks.push('Vue');
+        }
+        // Additional Vue detection via app element
+        const appElement = document.querySelector('#app');
+        if (appElement && (appElement.hasAttribute('data-v-') || appElement.querySelector('[data-v-]'))) {
+          if (!frameworks.includes('Vue')) {
+            frameworks.push('Vue');
+          }
+        }
+        // Check for Vue in DOM by looking for Vue-specific attributes and class patterns
+        const vueAttributes = ['data-v-', 'data-vue-', 'v-cloak', 'v-bind', 'v-on', 'v-if', 'v-for', 'v-model'];
+        for (const attr of vueAttributes) {
+          if (document.querySelector(`[${attr}]`)) {
+            if (!frameworks.includes('Vue')) {
+              frameworks.push('Vue');
+              break;
+            }
+          }
+        }
+        // Check for Vue-specific meta tags
+        const metaGenerator = document.querySelector('meta[name="generator"]');
+        if (metaGenerator && metaGenerator.getAttribute('content')?.toLowerCase().includes('vue')) {
+          if (!frameworks.includes('Vue')) {
+            frameworks.push('Vue');
+          }
+        }
+        // Check for Vue in script tags and window object
+        const scriptTags = Array.from(document.querySelectorAll('script'));
+        for (const script of scriptTags) {
+          const src = script.getAttribute('src') || '';
+          const content = script.textContent || '';
+          if (src.includes('vue') || content.includes('Vue.') || content.includes('vue.') || 
+              content.includes('__VUE__') || content.includes('__vue__')) {
+            if (!frameworks.includes('Vue')) {
+              frameworks.push('Vue');
+              break;
+            }
+          }
+        }
+        // Check for Vue in URL
+        if (window.location.hostname.includes('vue') || window.location.href.includes('vuejs.org')) {
+          if (!frameworks.includes('Vue')) {
+            frameworks.push('Vue');
+          }
         }
         if (win.angular || document.querySelector('[ng-version]') || document.querySelector('[ng-app]')) {
           frameworks.push('Angular');
@@ -819,6 +866,14 @@ export class PageManager {
       error = err instanceof Error ? err.message : String(err);
     }
 
+    // Wait for execution context to be ready after reload
+    // This prevents "Execution context was destroyed" errors when execute_js is called immediately after reload
+    try {
+      await pageInfo.page.waitForFunction(() => typeof window !== 'undefined', { timeout: 5000 });
+    } catch (err) {
+      console.error('Failed to wait for execution context:', err);
+    }
+
     const loadTime = Date.now() - startTime;
     const reloadedAt = Date.now();
 
@@ -972,9 +1027,54 @@ export class PageManager {
         error = response.exceptionDetails.exception?.description || response.exceptionDetails.text;
       } else {
         success = true;
-        // Handle cases where returnByValue fails for special types like Symbol
-        if (response.result.value !== undefined) {
-          result = response.result.value;
+        
+        // Handle special types (Map, Date, Set, etc.) that don't serialize properly with returnByValue
+        const resultType = response.result.type;
+        const resultSubtype = response.result.subtype;
+        const resultClassName = response.result.className;
+        
+        // Check if result is empty object (common for special types)
+        if (response.result.value !== undefined && typeof response.result.value === 'object') {
+          const valueKeys = Object.keys(response.result.value);
+          
+          // If value is an empty object and we have a special type, try to get better representation
+          if (valueKeys.length === 0 && (resultType === 'object' || resultSubtype)) {
+            try {
+              // Try to get a better representation using custom serialization
+              const specialTypeResponse = await consoleEnv.client.send('Runtime.evaluate', {
+                expression: `(() => { 
+                  const obj = ${code}; 
+                  if (obj instanceof Map) {
+                    return { __type: 'Map', size: obj.size, entries: Array.from(obj.entries()).slice(0, 10) };
+                  } else if (obj instanceof Date) {
+                    return { __type: 'Date', isoString: obj.toISOString(), timestamp: obj.getTime() };
+                  } else if (obj instanceof Set) {
+                    return { __type: 'Set', size: obj.size, entries: Array.from(obj.values()).slice(0, 10) };
+                  } else if (obj instanceof RegExp) {
+                    return { __type: 'RegExp', source: obj.source, flags: obj.flags };
+                  } else if (obj instanceof Error) {
+                    return { __type: 'Error', message: obj.message, name: obj.name };
+                  } else {
+                    return obj;
+                  }
+                })()`,
+                includeCommandLineAPI: true,
+                returnByValue: true,
+                awaitPromise: true,
+                replMode: false
+              });
+              
+              if (!specialTypeResponse.exceptionDetails && specialTypeResponse.result) {
+                result = specialTypeResponse.result.value;
+              } else {
+                result = response.result.value;
+              }
+            } catch (specialTypeErr) {
+              result = response.result.value;
+            }
+          } else {
+            result = response.result.value;
+          }
         } else if (response.result.type === 'symbol') {
           result = `Symbol(${response.result.description || ''})`;
         } else if (response.result.description) {
@@ -985,10 +1085,54 @@ export class PageManager {
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-
-      // Handle special case where returnByValue fails for Symbol and other special types
-      if (errorMessage.includes('Object couldn\'t be returned by value')) {
-        // Try to get the result description using returnByValue: false
+      
+      // Handle circular reference errors specifically
+      if (errorMessage.includes('circular reference') || 
+          errorMessage.includes('circular') || 
+          errorMessage.includes('Object graph is too complex') || 
+          errorMessage.includes('Object reference chain is too long') ||
+          errorMessage.includes('Object reference chain') ||
+          errorMessage.includes('too long') ||
+          errorMessage.includes('Object contains circular references')) {
+        // Try to get the object description without returning by value
+        try {
+          const descriptionResponse = await consoleEnv.client.send('Runtime.evaluate', {
+            expression: `(() => { try { return ${code} } catch(e) { return e.message; } })()`,
+            includeCommandLineAPI: true,
+            returnByValue: false,
+            awaitPromise: true,
+            replMode: false
+          });
+          
+          if (!descriptionResponse.exceptionDetails) {
+            success = true;
+            // For circular references, return a placeholder object
+            result = { 
+              __circular__: true, 
+              message: 'Object contains circular references and cannot be fully serialized',
+              type: descriptionResponse.result?.type || 'object'
+            };
+          } else {
+            // Even if we get an exception, we know this is a circular reference
+            // So we still treat it as success with a friendly message
+            success = true;
+            result = { 
+              __circular__: true, 
+              message: 'Object contains circular references and cannot be fully serialized',
+              type: 'object'
+            };
+          }
+        } catch (circularErr) {
+          // If even the fallback fails, we still treat it as success with a friendly message
+          success = true;
+          result = { 
+            __circular__: true, 
+            message: 'Object contains circular references and cannot be fully serialized',
+            type: 'object'
+          };
+        }
+      } else if (errorMessage.includes('Object couldn\'t be returned by value')) {
+        // Handle special case where returnByValue fails for Symbol and other special types
         try {
           const descriptionResponse = await consoleEnv.client.send('Runtime.evaluate', {
             expression: code,
@@ -1042,7 +1186,13 @@ export class PageManager {
     }
 
     const executionTime = Date.now() - startTime;
-    const preview = success ? this.generatePreview(result) : undefined;
+    let preview = success ? this.generatePreview(result) : undefined;
+    
+    // Handle circular reference preview
+    if (success && result && typeof result === 'object' && result.__circular__) {
+      const circularPreview = `<Circular Reference> - ${result.message}`;
+      preview = circularPreview;
+    }
 
     consoleEnv.history.push({ code, result, preview, timestamp: Date.now(), executionTime, success, error });
     if (consoleEnv.history.length > 100) {
@@ -1281,6 +1431,24 @@ export class PageManager {
       case 'object':
         if (Array.isArray(value)) {
           return `Array(${value.length})[${value.slice(0, 3).map(item => this.generatePreview(item, 30)).join(', ')}${value.length > 3 ? '...' : ''}]`;
+        } else if (value.__type) {
+          // Handle special types with custom serialization
+          switch (value.__type) {
+            case 'Map':
+              const mapEntries = value.entries ? value.entries.map(([k, v]: [any, any]) => `${k} => ${this.generatePreview(v, 20)}`).join(', ') : '';
+              return `Map(${value.size}){${mapEntries}${value.entries && value.entries.length >= 10 ? '...' : ''}}`;
+            case 'Date':
+              return `Date ${value.isoString}`;
+            case 'Set':
+              const setEntries = value.entries ? value.entries.map((v: any) => this.generatePreview(v, 20)).join(', ') : '';
+              return `Set(${value.size})[${setEntries}${value.entries && value.entries.length >= 10 ? '...' : ''}]`;
+            case 'RegExp':
+              return `RegExp ${value.source} (${value.flags})`;
+            case 'Error':
+              return `${value.name}: ${value.message}`;
+            default:
+              return `[${value.__type}]`;
+          }
         } else {
           const keys = Object.keys(value).slice(0, 3);
           const preview = keys.map(key => `${key}: ${this.generatePreview(value[key], 30)}`).join(', ');
