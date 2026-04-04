@@ -63,7 +63,14 @@ coverage/
 .fusebox/
 .dynamodb/
 .tern-port
-.stats.json
+
+# Build and stats
+stats.json
+*.stats.json
+
+# Documentation reports
+BUG_FIXES_SUMMARY.md
+TEST_REPORT.md
 
 # OS specific
 Thumbs.db
