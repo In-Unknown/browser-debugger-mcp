@@ -865,6 +865,57 @@ export class PageManager {
       }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+      
+      // Handle common reload errors that occur due to frame detachment
+      // These errors often happen after user interactions (clicks, navigation)
+      // but the page may still be functional, so we attempt to recover gracefully
+      if (error && (
+        error.includes('net::ERR_ABORTED') || 
+        error.includes('frame was detached') ||
+        error.includes('Target closed')
+      )) {
+        console.log(`Page reload encountered common error: ${error}. Attempting to recover...`);
+        
+        // Wait a moment for the page to stabilize
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Check if the page is still accessible and has a valid URL
+        try {
+          const currentUrl = pageInfo.page.url();
+          const currentTitle = await pageInfo.page.title();
+          
+          if (currentUrl && currentUrl !== 'about:blank' && !currentUrl.includes('chrome://')) {
+            console.log(`Page recovered successfully after reload error. URL: ${currentUrl}`);
+            
+            // Update pageInfo with current state
+            pageInfo.url = currentUrl;
+            
+            // Try to get page status via evaluation
+            try {
+              const docReady = await pageInfo.page.evaluate(() => {
+                return {
+                  readyState: document.readyState,
+                  hasContent: document.body ? document.body.innerHTML.length > 0 : false
+                };
+              });
+              
+              if (docReady && (docReady.readyState === 'complete' || docReady.readyState === 'interactive' || docReady.hasContent)) {
+                // Page is functional, consider the reload successful
+                error = undefined;
+                status = 200;
+                statusText = 'OK';
+                console.log('Page is functional, marking reload as successful');
+              }
+            } catch (evalErr) {
+              // Cannot evaluate page state, keep the original error
+              console.log('Could not evaluate page state:', evalErr);
+            }
+          }
+        } catch (recoverErr) {
+          // Page is not accessible, keep the original error
+          console.log('Failed to recover page state:', recoverErr);
+        }
+      }
     }
 
     // Wait for execution context to be ready after reload
@@ -1225,7 +1276,13 @@ export class PageManager {
       this.consoleEnvironments.delete(environmentId);
       return { success: true, message: `Console environment destroyed for page ${pageId}` };
     }
-    return { success: false, message: `Console environment not found for page ${pageId}` };
+    
+    // Console environment not found - this is not an error, just informational
+    // The environment may have never been created or was already destroyed
+    return { 
+      success: true, 
+      message: `No active console environment found for page ${pageId}. Nothing to destroy.` 
+    };
   }
 
   async inspectElement(pageId: string, selector: string, stylesToGet?: string[]): Promise<any> {
