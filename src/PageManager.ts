@@ -697,6 +697,8 @@ export class PageManager {
     const scriptType = this.detectScriptType(script);
 
     try {
+      // Ensure execution context is ready before evaluating
+      await this.ensureExecutionContextReady(pageInfo.page);
       result = await pageInfo.page.evaluate(script);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -1041,6 +1043,13 @@ export class PageManager {
       return { success: false, error: `Page with id ${pageId} not found`, executionTime: 0 };
     }
 
+    // Ensure execution context is ready before executing console code
+    try {
+      await this.ensureExecutionContextReady(pageInfo.page);
+    } catch (err) {
+      return { success: false, error: `Execution context not ready: ${err instanceof Error ? err.message : String(err)}`, executionTime: 0 };
+    }
+
     if (resetContext && this.consoleEnvironments.has(environmentId)) {
       await this.destroyConsoleEnvironment(pageId);
     }
@@ -1290,6 +1299,9 @@ export class PageManager {
     if (!pageInfo) return { success: false, error: `Page with id ${pageId} not found` };
 
     try {
+      // Ensure execution context is ready before inspecting elements
+      await this.ensureExecutionContextReady(pageInfo.page);
+      
       const element = pageInfo.page.locator(selector).first();
       
       const count = await element.count();
@@ -1374,6 +1386,9 @@ export class PageManager {
     const { x, y, targetSelector, steps = 10, nonlinear = false } = options || {};
 
     try {
+      // Ensure execution context is ready before performing actions
+      await this.ensureExecutionContextReady(pageInfo.page);
+      
       switch (action) {
         case 'click':
           if (!selector) return { success: false, error: 'click action requires a selector parameter' };
@@ -1604,6 +1619,23 @@ export class PageManager {
       // Mark it as null so it can be reinitialized later
       this.edgeContext = null;
       this.initEdgePromise = null;
+    }
+  }
+
+  private async ensureExecutionContextReady(page: Page): Promise<void> {
+    try {
+      // Wait for execution context to be ready
+      await page.waitForFunction(() => typeof window !== 'undefined' && typeof document !== 'undefined', { timeout: 10000 });
+      
+      // Additional check: ensure eval is available in execution context
+      await page.evaluate(() => {
+        if (typeof eval === 'undefined') {
+          throw new Error('eval is not available in execution context');
+        }
+      });
+    } catch (err) {
+      console.error('Failed to ensure execution context is ready:', err);
+      throw new Error(`Execution context is not ready: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
