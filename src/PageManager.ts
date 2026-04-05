@@ -546,7 +546,8 @@ export class PageManager {
         if (win.__NUXT__) {
           frameworks.push('Nuxt.js');
         }
-        if (win.electronAPI || typeof win.require === 'function') {
+        // More strict Electron detection - check for multiple Electron-specific indicators
+        if (win.electronAPI && (typeof win.require === 'function' || win.process?.versions?.electron)) {
           frameworks.push('Electron');
         }
         if (win.preact) {
@@ -1077,9 +1078,8 @@ export class PageManager {
           }
         } else if (response.result.type === 'symbol') {
           result = `Symbol(${response.result.description || ''})`;
-        } else if (response.result.description) {
-          result = response.result.description;
         } else {
+          // Prioritize value over description to preserve types (number, boolean, etc.)
           result = response.result.value;
         }
       }
@@ -1240,7 +1240,31 @@ export class PageManager {
         return { success: false, error: `Element matching selector "${selector}" not found in DOM.` };
       }
 
-      const isVisible = await element.isVisible();
+      // Improved visibility detection using custom logic
+      const isVisible = await element.evaluate(el => {
+        // Check if element has a bounding box
+        const rect = el.getBoundingClientRect();
+        const hasSize = rect.width > 0 && rect.height > 0;
+
+        // Check computed styles
+        const computed = window.getComputedStyle(el);
+        const isDisplayNone = computed.display === 'none';
+        const isVisibilityHidden = computed.visibility === 'hidden';
+        const isOpacityZero = computed.opacity === '0' || computed.opacity === '0.0';
+
+        // Check if element has an offset parent (not fixed positioned or display: none)
+        // Cast to HTMLElement to access offsetParent (SVGElement doesn't have it)
+        const htmlEl = el as HTMLElement;
+        const hasOffsetParent = htmlEl.offsetParent !== null;
+
+        // Element is considered visible if:
+        // 1. It has a non-zero size
+        // 2. It's not display: none
+        // 3. It's not visibility: hidden
+        // 4. It's not fully transparent
+        return hasSize && !isDisplayNone && !isVisibilityHidden && !isOpacityZero;
+      });
+
       const boundingBox = await element.boundingBox();
       const html = await element.evaluate(el => el.outerHTML);
 
@@ -1299,7 +1323,35 @@ export class PageManager {
           const clickElement = pageInfo.page.locator(selector).first();
           const clickCount = await clickElement.count();
           if (clickCount === 0) return { success: false, error: `Element matching selector "${selector}" not found in DOM.` };
-          await clickElement.click({ timeout: 5000 });
+          
+          // Check if element has a valid bounding box
+          const boundingBox = await clickElement.boundingBox();
+          const hasValidBoundingBox = boundingBox && boundingBox.width > 0 && boundingBox.height > 0;
+          
+          if (hasValidBoundingBox) {
+            // Element has valid bounding box, use normal click with force
+            await clickElement.evaluate(el => {
+              el.style.visibility = 'visible';
+              el.style.opacity = '1';
+              el.style.display = el.style.display === 'none' ? '' : el.style.display;
+            });
+            await clickElement.click({ timeout: 5000, force: true });
+          } else {
+            // Element has no valid bounding box (width or height is 0), use JavaScript to trigger click
+            await clickElement.evaluate(el => {
+              el.style.visibility = 'visible';
+              el.style.opacity = '1';
+              el.style.display = el.style.display === 'none' ? '' : el.style.display;
+              
+              // Trigger click event using JavaScript
+              const event = new MouseEvent('click', {
+                view: window,
+                bubbles: true,
+                cancelable: true
+              });
+              el.dispatchEvent(event);
+            });
+          }
           return { success: true, message: `Successfully clicked element matching selector "${selector}"` };
 
         case 'hover':
@@ -1315,7 +1367,13 @@ export class PageManager {
           const fillElement = pageInfo.page.locator(selector).first();
           const fillCount = await fillElement.count();
           if (fillCount === 0) return { success: false, error: `Element matching selector "${selector}" not found in DOM.` };
-          await fillElement.fill(value || '', { timeout: 5000 });
+          // Force element to be visible before filling
+          await fillElement.evaluate(el => {
+            el.style.visibility = 'visible';
+            el.style.opacity = '1';
+            el.style.display = el.style.display === 'none' ? '' : el.style.display;
+          });
+          await fillElement.fill(value || '', { timeout: 5000, force: true });
           return { success: true, message: `Successfully filled element matching selector "${selector}" with value "${value}"` };
 
         case 'focus':
@@ -1428,6 +1486,8 @@ export class PageManager {
       case 'number':
       case 'boolean':
         return value.toString();
+      case 'bigint':
+        return value.toString() + 'n';
       case 'object':
         if (Array.isArray(value)) {
           return `Array(${value.length})[${value.slice(0, 3).map(item => this.generatePreview(item, 30)).join(', ')}${value.length > 3 ? '...' : ''}]`;
