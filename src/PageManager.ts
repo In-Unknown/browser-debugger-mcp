@@ -40,6 +40,7 @@ interface AppConfig {
   extensionsDir?: string;
   viewport?: { width: number; height: number };
   edgePath?: string;
+  deterministicNonlinearPath?: boolean;
 }
 
 export class PageManager {
@@ -53,6 +54,12 @@ export class PageManager {
   
   private config: AppConfig | null = null;
   private currentMousePos = { x: 0, y: 0 };
+  private deterministicSeed = 12345;
+  
+  // Performance limits for object serialization
+  private readonly MAX_OBJECT_PROPERTIES = 1000;
+  private readonly MAX_ARRAY_LENGTH = 100;
+  private readonly MAX_STRING_LENGTH = 10000;
   
   // Init Locks to prevent parallel startup collisions
   private initLocalPromise: Promise<void> | null = null;
@@ -147,97 +154,152 @@ export class PageManager {
     if (this.initEdgePromise) return this.initEdgePromise;
 
     this.initEdgePromise = (async () => {
-      this.config = await this.loadConfig();
-      const { chromium } = await import('playwright');
+      try {
+        this.config = await this.loadConfig();
+        const { chromium } = await import('playwright');
 
-      let allResolvedPaths: string[] = [];
+        let allResolvedPaths: string[] = [];
 
-      if (this.config.extensionsDir) {
-        try {
-          const idFolders = await fs.readdir(this.config.extensionsDir);
-          for (const id of idFolders) {
-            const idPath = path.join(this.config.extensionsDir, id);
-            try {
-              const stat = await fs.lstat(idPath);
-              
-              if (stat.isDirectory()) {
-                const versions = await fs.readdir(idPath);
-                if (versions.length > 0) {
-                  const finalPath = path.join(idPath, versions[0]);
-                  await this.fixExtensionKeys(finalPath);
-                  allResolvedPaths.push(finalPath);
+        if (this.config.extensionsDir) {
+          try {
+            const idFolders = await fs.readdir(this.config.extensionsDir);
+            for (const id of idFolders) {
+              const idPath = path.join(this.config.extensionsDir, id);
+              try {
+                const stat = await fs.lstat(idPath);
+                
+                if (stat.isDirectory()) {
+                  const versions = await fs.readdir(idPath);
+                  if (versions.length > 0) {
+                    const finalPath = path.join(idPath, versions[0]);
+                    await this.fixExtensionKeys(finalPath);
+                    allResolvedPaths.push(finalPath);
+                  }
                 }
+              } catch (e) {
+                console.error(`Failed to process extension ${id}:`, e);
               }
-            } catch (e) {
-              console.error(`Failed to process extension ${id}:`, e);
+            }
+            console.log(`Loaded ${allResolvedPaths.length} extensions from ${this.config.extensionsDir}`);
+          } catch (e) {
+            console.error("Failed to scan extensions directory:", e);
+          }
+        }
+
+        if (this.config.extensionPaths.length > 0) {
+          allResolvedPaths.push(...this.config.extensionPaths);
+        }
+
+        const clearSessionFiles = async () => {
+          const sessionsDir = path.join(this.config!.userDataDir, 'Default', 'Sessions');
+          try {
+            const files: string[] = await fs.readdir(sessionsDir);
+            console.log(`Found ${files.length} session files to clear`);
+            for (const file of files) {
+              const filePath = path.join(sessionsDir, file);
+              await fs.unlink(filePath);
+              console.log(`Deleted: ${file}`);
+            }
+            console.log('Cleared session files');
+          } catch (e) {
+            console.log('No session files to clear or error:', (e as Error).message);
+          }
+        };
+
+        await clearSessionFiles();
+
+        const args: string[] = [
+          '--disable-blink-features=AutomationControlled',
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--disable-session-crashed-bubble',
+          '--disable-infobars',
+          '--restore-last-session=false',
+          '--no-session-restore',
+        ];
+
+        if (allResolvedPaths.length > 0) {
+          const extensionsArg = allResolvedPaths.join(',');
+          args.push(
+            `--disable-extensions-except=${extensionsArg}`,
+            `--load-extension=${extensionsArg}`
+          );
+        }
+
+        // Verify userDataDir exists before attempting to launch Edge
+        try {
+          await fs.access(this.config.userDataDir);
+        } catch (accessError) {
+          console.error(`User data directory does not exist: ${this.config.userDataDir}`);
+          console.error('Attempting to create user data directory...');
+          await fs.mkdir(this.config.userDataDir, { recursive: true });
+          console.log('User data directory created successfully');
+        }
+
+        this.edgeContext = await chromium.launchPersistentContext(this.config.userDataDir, {
+          channel: 'msedge',
+          headless: false,
+          executablePath: this.config.edgePath,
+          viewport: this.config.viewport || { width: 1280, height: 720 },
+          args: args,
+          ignoreDefaultArgs: ['--enable-automation']
+        });
+
+        this.setupContextListeners(this.edgeContext, 'edge');
+        
+        const closeOnboardingPage = async () => {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          for (const page of this.edgeContext!.pages()) {
+            if (page.url().includes('immersivetranslate.com') && page.url().includes('onboarding')) {
+              await page.close().catch(()=>{});
             }
           }
-          console.log(`Loaded ${allResolvedPaths.length} extensions from ${this.config.extensionsDir}`);
-        } catch (e) {
-          console.error("Failed to scan extensions directory:", e);
-        }
-      }
-
-      if (this.config.extensionPaths.length > 0) {
-        allResolvedPaths.push(...this.config.extensionPaths);
-      }
-
-      const clearSessionFiles = async () => {
-        const sessionsDir = path.join(this.config!.userDataDir, 'Default', 'Sessions');
-        try {
-          const files: string[] = await fs.readdir(sessionsDir);
-          console.log(`Found ${files.length} session files to clear`);
-          for (const file of files) {
-            const filePath = path.join(sessionsDir, file);
-            await fs.unlink(filePath);
-            console.log(`Deleted: ${file}`);
-          }
-          console.log('Cleared session files');
-        } catch (e) {
-          console.log('No session files to clear or error:', (e as Error).message);
-        }
-      };
-
-      await clearSessionFiles();
-
-      const args: string[] = [
-        '--disable-blink-features=AutomationControlled',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-session-crashed-bubble',
-        '--disable-infobars',
-        '--restore-last-session=false',
-        '--no-session-restore',
-      ];
-
-      if (allResolvedPaths.length > 0) {
-        const extensionsArg = allResolvedPaths.join(',');
-        args.push(
-          `--disable-extensions-except=${extensionsArg}`,
-          `--load-extension=${extensionsArg}`
-        );
-      }
-
-      this.edgeContext = await chromium.launchPersistentContext(this.config.userDataDir, {
-        channel: 'msedge',
-        headless: false,
-        executablePath: this.config.edgePath,
-        viewport: this.config.viewport || { width: 1280, height: 720 },
-        args: args,
-        ignoreDefaultArgs: ['--enable-automation']
-      });
-
-      this.setupContextListeners(this.edgeContext, 'edge');
-      
-      const closeOnboardingPage = async () => {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        for (const page of this.edgeContext!.pages()) {
-          if (page.url().includes('immersivetranslate.com') && page.url().includes('onboarding')) {
-            await page.close().catch(()=>{});
+        };
+        closeOnboardingPage();
+      } catch (error) {
+        console.error('Failed to initialize Edge browser:', error);
+        
+        // Provide detailed error information to help users troubleshoot
+        if (error instanceof Error) {
+          const errorMessage = error.message;
+          if (errorMessage.includes('Failed to launch') || errorMessage.includes('Executable')) {
+            console.error('');
+            console.error('===================================================');
+            console.error('Edge Browser Initialization Failed');
+            console.error('===================================================');
+            console.error('Possible causes:');
+            console.error('1. Microsoft Edge is not installed on this system');
+            console.error('2. Edge executable path is incorrectly configured in browser-config.json');
+            console.error('3. Required Edge dependencies are missing');
+            console.error('');
+            console.error('Solutions:');
+            console.error('- Install Microsoft Edge from https://www.microsoft.com/edge');
+            console.error('- Ensure edgePath in browser-config.json points to the correct executable');
+            console.error('- Try removing the edgePath field to use the default system Edge installation');
+            console.error('===================================================');
+            console.error('');
+          } else if (errorMessage.includes('userDataDir') || errorMessage.includes('profile')) {
+            console.error('');
+            console.error('===================================================');
+            console.error('Edge User Data Directory Error');
+            console.error('===================================================');
+            console.error('Possible causes:');
+            console.error(`1. User data directory is inaccessible: ${this.config?.userDataDir}`);
+            console.error('2. Directory permissions are insufficient');
+            console.error('3. Another Edge instance is using this profile');
+            console.error('');
+            console.error('Solutions:');
+            console.error('- Close all running Edge browser instances');
+            console.error('- Check that the userDataDir path is correct and accessible');
+            console.error('- Ensure the application has write permissions to the directory');
+            console.error('- Try using a different userDataDir path');
+            console.error('===================================================');
+            console.error('');
           }
         }
-      };
-      closeOnboardingPage();
+        
+        throw new Error(`Failed to initialize Edge browser: ${error instanceof Error ? error.message : String(error)}`);
+      }
     })();
     await this.initEdgePromise;
   }
@@ -1101,22 +1163,45 @@ export class PageManager {
           // If value is an empty object and we have a special type, try to get better representation
           if (valueKeys.length === 0 && (resultType === 'object' || resultSubtype)) {
             try {
-              // Try to get a better representation using custom serialization
+              // Try to get a better representation using custom serialization with performance limits
               const specialTypeResponse = await consoleEnv.client.send('Runtime.evaluate', {
                 expression: `(() => { 
                   const obj = ${code}; 
                   if (obj instanceof Map) {
-                    return { __type: 'Map', size: obj.size, entries: Array.from(obj.entries()).slice(0, 10) };
+                    const entries = Array.from(obj.entries()).slice(0, ${this.MAX_ARRAY_LENGTH});
+                    return { __type: 'Map', size: obj.size, entries, truncated: obj.size > ${this.MAX_ARRAY_LENGTH} };
                   } else if (obj instanceof Date) {
                     return { __type: 'Date', isoString: obj.toISOString(), timestamp: obj.getTime() };
                   } else if (obj instanceof Set) {
-                    return { __type: 'Set', size: obj.size, entries: Array.from(obj.values()).slice(0, 10) };
+                    const values = Array.from(obj.values()).slice(0, ${this.MAX_ARRAY_LENGTH});
+                    return { __type: 'Set', size: obj.size, entries: values, truncated: obj.size > ${this.MAX_ARRAY_LENGTH} };
                   } else if (obj instanceof RegExp) {
                     return { __type: 'RegExp', source: obj.source, flags: obj.flags };
                   } else if (obj instanceof Error) {
                     return { __type: 'Error', message: obj.message, name: obj.name };
+                  } else if (Array.isArray(obj)) {
+                    const arr = obj.slice(0, ${this.MAX_ARRAY_LENGTH});
+                    return { __type: 'Array', length: obj.length, items: arr, truncated: obj.length > ${this.MAX_ARRAY_LENGTH} };
                   } else {
-                    return obj;
+                    // For large objects, limit the number of properties
+                    const keys = Object.keys(obj);
+                    const limitedObj: any = {};
+                    for (let i = 0; i < Math.min(keys.length, ${this.MAX_OBJECT_PROPERTIES}); i++) {
+                      const key = keys[i];
+                      const value = obj[key];
+                      // Limit string values
+                      if (typeof value === 'string' && value.length > ${this.MAX_STRING_LENGTH}) {
+                        limitedObj[key] = value.substring(0, ${this.MAX_STRING_LENGTH}) + '... (truncated)';
+                      } else {
+                        limitedObj[key] = value;
+                      }
+                    }
+                    return { 
+                      __type: 'Object', 
+                      totalProperties: keys.length, 
+                      properties: limitedObj, 
+                      truncated: keys.length > ${this.MAX_OBJECT_PROPERTIES} 
+                    };
                   }
                 })()`,
                 includeCommandLineAPI: true,
@@ -1134,7 +1219,48 @@ export class PageManager {
               result = response.result.value;
             }
           } else {
-            result = response.result.value;
+            // Apply performance limits to regular objects
+            try {
+              const limitedResponse = await consoleEnv.client.send('Runtime.evaluate', {
+                expression: `(() => { 
+                  const obj = ${code}; 
+                  if (Array.isArray(obj)) {
+                    const arr = obj.slice(0, ${this.MAX_ARRAY_LENGTH});
+                    return { __type: 'Array', length: obj.length, items: arr, truncated: obj.length > ${this.MAX_ARRAY_LENGTH} };
+                  } else {
+                    const keys = Object.keys(obj);
+                    const limitedObj: any = {};
+                    for (let i = 0; i < Math.min(keys.length, ${this.MAX_OBJECT_PROPERTIES}); i++) {
+                      const key = keys[i];
+                      const value = obj[key];
+                      if (typeof value === 'string' && value.length > ${this.MAX_STRING_LENGTH}) {
+                        limitedObj[key] = value.substring(0, ${this.MAX_STRING_LENGTH}) + '... (truncated)';
+                      } else {
+                        limitedObj[key] = value;
+                      }
+                    }
+                    return { 
+                      __type: 'Object', 
+                      totalProperties: keys.length, 
+                      properties: limitedObj, 
+                      truncated: keys.length > ${this.MAX_OBJECT_PROPERTIES} 
+                    };
+                  }
+                })()`,
+                includeCommandLineAPI: true,
+                returnByValue: true,
+                awaitPromise: true,
+                replMode: false
+              });
+              
+              if (!limitedResponse.exceptionDetails && limitedResponse.result) {
+                result = limitedResponse.result.value;
+              } else {
+                result = response.result.value;
+              }
+            } catch (limitErr) {
+              result = response.result.value;
+            }
           }
         } else if (response.result.type === 'symbol') {
           result = `Symbol(${response.result.description || ''})`;
@@ -1525,21 +1651,43 @@ export class PageManager {
     const startX = this.currentMousePos.x;
     const startY = this.currentMousePos.y;
     
+    // Use deterministic random if configured, otherwise use true random
+    const useDeterministic = this.config?.deterministicNonlinearPath === true;
+    
+    // Seeded random function for deterministic behavior
+    const seededRandom = (seed: number) => {
+      const x = Math.sin(seed++) * 10000;
+      return x - Math.floor(x);
+    };
+    
     for (let i = 1; i <= steps; i++) {
       const progress = i / steps;
       
       const baseX = startX + (targetX - startX) * progress;
       const baseY = startY + (targetY - startY) * progress;
       
-      const offsetX = (Math.random() - 0.5) * 30;
-      const offsetY = (Math.random() - 0.5) * 30;
+      let offsetX: number;
+      let offsetY: number;
+      let delay: number;
+      
+      if (useDeterministic) {
+        // Use seeded random for deterministic behavior
+        offsetX = (seededRandom(this.deterministicSeed + i * 2) - 0.5) * 30;
+        offsetY = (seededRandom(this.deterministicSeed + i * 2 + 1) - 0.5) * 30;
+        delay = 10 + seededRandom(this.deterministicSeed + i * 2 + 2) * 20;
+      } else {
+        // Use true random for realistic behavior
+        offsetX = (Math.random() - 0.5) * 30;
+        offsetY = (Math.random() - 0.5) * 30;
+        delay = 10 + Math.random() * 20;
+      }
       
       const x = baseX + offsetX;
       const y = baseY + offsetY;
       
       await page.mouse.move(x, y, { steps: 1 });
       this.currentMousePos = { x, y };
-      await new Promise(resolve => setTimeout(resolve, 10 + Math.random() * 20));
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
     
     this.currentMousePos = { x: targetX, y: targetY };

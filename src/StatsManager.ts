@@ -41,8 +41,17 @@ export class StatsManager {
   private callHistory: ToolCallRecord[] = [];
   private maxHistorySize = 1000;
   private autoSaveCounter = 0;
-  private autoSaveThreshold = 1;
+  private autoSaveThreshold = 20;
   private filePath: string;
+  
+  // Dynamic auto-save mechanism
+  private dynamicAutoSave: boolean = true;
+  private callStartTime: number = 0;
+  private callCountInWindow: number = 0;
+  private timeWindowMs: number = 10000; // 10 seconds time window
+  private adaptiveThreshold: number = 20;
+  private lastAutoSaveTime: number = 0;
+  private minAutoSaveIntervalMs: number = 5000; // Minimum 5 seconds between auto-saves
   
   constructor(filePath?: string) {
     this.filePath = filePath || join(__dirname, '..', 'stats.json');
@@ -209,10 +218,57 @@ export class StatsManager {
   }
 
   async autoSaveIfNeeded(): Promise<void> {
+    const now = Date.now();
+    
+    if (!this.dynamicAutoSave) {
+      // Fallback to original fixed threshold behavior
+      this.autoSaveCounter++;
+      if (this.autoSaveCounter >= this.autoSaveThreshold) {
+        await this.saveToFile();
+        this.autoSaveCounter = 0;
+      }
+      return;
+    }
+    
+    // Initialize time window on first call
+    if (this.callStartTime === 0) {
+      this.callStartTime = now;
+    }
+    
     this.autoSaveCounter++;
-    if (this.autoSaveCounter >= this.autoSaveThreshold) {
+    this.callCountInWindow++;
+    
+    // Check if we need to reset the time window
+    const timeSinceWindowStart = now - this.callStartTime;
+    if (timeSinceWindowStart > this.timeWindowMs) {
+      // Calculate adaptive threshold based on call frequency
+      const callsPerSecond = this.callCountInWindow / (timeSinceWindowStart / 1000);
+      
+      // Dynamic threshold adjustment:
+      // - High frequency: increase threshold to reduce saves
+      // - Low frequency: use lower threshold for more frequent saves
+      if (callsPerSecond > 10) {
+        this.adaptiveThreshold = 50; // High frequency: save less often
+      } else if (callsPerSecond > 5) {
+        this.adaptiveThreshold = 30; // Medium frequency
+      } else {
+        this.adaptiveThreshold = 20; // Low frequency: save more often
+      }
+      
+      // Reset counters for new window
+      this.callStartTime = now;
+      this.callCountInWindow = 0;
+    }
+    
+    // Check if we should auto-save
+    const timeSinceLastSave = now - this.lastAutoSaveTime;
+    const shouldSave = this.autoSaveCounter >= this.adaptiveThreshold && 
+                      timeSinceLastSave >= this.minAutoSaveIntervalMs;
+    
+    if (shouldSave) {
       await this.saveToFile();
       this.autoSaveCounter = 0;
+      this.lastAutoSaveTime = now;
     }
   }
 
@@ -222,6 +278,31 @@ export class StatsManager {
 
   setAutoSaveThreshold(threshold: number): void {
     this.autoSaveThreshold = Math.max(1, threshold);
+  }
+
+  // Dynamic auto-save configuration methods
+  enableDynamicAutoSave(): void {
+    this.dynamicAutoSave = true;
+  }
+
+  disableDynamicAutoSave(): void {
+    this.dynamicAutoSave = false;
+  }
+
+  isDynamicAutoSaveEnabled(): boolean {
+    return this.dynamicAutoSave;
+  }
+
+  setMinAutoSaveInterval(intervalMs: number): void {
+    this.minAutoSaveIntervalMs = Math.max(1000, intervalMs); // Minimum 1 second
+  }
+
+  setTimeWindowMs(windowMs: number): void {
+    this.timeWindowMs = Math.max(5000, windowMs); // Minimum 5 seconds
+  }
+
+  getCurrentAdaptiveThreshold(): number {
+    return this.adaptiveThreshold;
   }
 
   exportStats(): {
