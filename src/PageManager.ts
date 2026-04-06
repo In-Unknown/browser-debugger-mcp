@@ -44,6 +44,10 @@ interface AppConfig {
 }
 
 export class PageManager {
+  // Version information
+  private static readonly VERSION = '1.0.1';
+  private static readonly BUILD_DATE = '2026-04-06';
+
   private pages: Map<string, PageInfo> = new Map();
   private consoleEnvironments: Map<string, ConsoleEnvironment> = new Map();
   
@@ -1137,136 +1141,108 @@ export class PageManager {
     let success = false;
 
     try {
-      const response = await consoleEnv.client.send('Runtime.evaluate', {
-        expression: code,
+      // Step 1: First, get the object type without serialization
+      const typeCheckResponse = await consoleEnv.client.send('Runtime.evaluate', {
+        expression: `(() => { const r = ${code}; return typeof r !== 'object' || r === null ? typeof r : (Object.prototype.toString.call(r)); })()`,
         includeCommandLineAPI: true,
         returnByValue: true,
         awaitPromise: true,
-        replMode: true
+        replMode: false
       });
 
-      if (response.exceptionDetails) {
-        success = false;
-        error = response.exceptionDetails.exception?.description || response.exceptionDetails.text;
-      } else {
-        success = true;
-        
-        // Handle special types (Map, Date, Set, etc.) that don't serialize properly with returnByValue
-        const resultType = response.result.type;
-        const resultSubtype = response.result.subtype;
-        const resultClassName = response.result.className;
-        
-        // Check if result is empty object (common for special types)
-        if (response.result.value !== undefined && typeof response.result.value === 'object') {
-          const valueKeys = Object.keys(response.result.value);
-          
-          // If value is an empty object and we have a special type, try to get better representation
-          if (valueKeys.length === 0 && (resultType === 'object' || resultSubtype)) {
-            try {
-              // Try to get a better representation using custom serialization with performance limits
-              const specialTypeResponse = await consoleEnv.client.send('Runtime.evaluate', {
-                expression: `(() => { 
-                  const obj = ${code}; 
-                  if (obj instanceof Map) {
-                    const entries = Array.from(obj.entries()).slice(0, ${this.MAX_ARRAY_LENGTH});
-                    return { __type: 'Map', size: obj.size, entries, truncated: obj.size > ${this.MAX_ARRAY_LENGTH} };
-                  } else if (obj instanceof Date) {
-                    return { __type: 'Date', isoString: obj.toISOString(), timestamp: obj.getTime() };
-                  } else if (obj instanceof Set) {
-                    const values = Array.from(obj.values()).slice(0, ${this.MAX_ARRAY_LENGTH});
-                    return { __type: 'Set', size: obj.size, entries: values, truncated: obj.size > ${this.MAX_ARRAY_LENGTH} };
-                  } else if (obj instanceof RegExp) {
-                    return { __type: 'RegExp', source: obj.source, flags: obj.flags };
-                  } else if (obj instanceof Error) {
-                    return { __type: 'Error', message: obj.message, name: obj.name };
-                  } else if (Array.isArray(obj)) {
-                    const arr = obj.slice(0, ${this.MAX_ARRAY_LENGTH});
-                    return { __type: 'Array', length: obj.length, items: arr, truncated: obj.length > ${this.MAX_ARRAY_LENGTH} };
-                  } else {
-                    // For large objects, limit the number of properties
-                    const keys = Object.keys(obj);
-                    const limitedObj: any = {};
-                    for (let i = 0; i < Math.min(keys.length, ${this.MAX_OBJECT_PROPERTIES}); i++) {
-                      const key = keys[i];
-                      const value = obj[key];
-                      // Limit string values
-                      if (typeof value === 'string' && value.length > ${this.MAX_STRING_LENGTH}) {
-                        limitedObj[key] = value.substring(0, ${this.MAX_STRING_LENGTH}) + '... (truncated)';
-                      } else {
-                        limitedObj[key] = value;
-                      }
-                    }
-                    return { 
-                      __type: 'Object', 
-                      totalProperties: keys.length, 
-                      properties: limitedObj, 
-                      truncated: keys.length > ${this.MAX_OBJECT_PROPERTIES} 
-                    };
-                  }
-                })()`,
-                includeCommandLineAPI: true,
-                returnByValue: true,
-                awaitPromise: true,
-                replMode: false
-              });
-              
-              if (!specialTypeResponse.exceptionDetails && specialTypeResponse.result) {
-                result = specialTypeResponse.result.value;
-              } else {
-                result = response.result.value;
-              }
-            } catch (specialTypeErr) {
-              result = response.result.value;
-            }
-          } else {
-            // Apply performance limits to regular objects
-            try {
-              const limitedResponse = await consoleEnv.client.send('Runtime.evaluate', {
-                expression: `(() => { 
-                  const obj = ${code}; 
-                  if (Array.isArray(obj)) {
-                    const arr = obj.slice(0, ${this.MAX_ARRAY_LENGTH});
-                    return { __type: 'Array', length: obj.length, items: arr, truncated: obj.length > ${this.MAX_ARRAY_LENGTH} };
-                  } else {
-                    const keys = Object.keys(obj);
-                    const limitedObj: any = {};
-                    for (let i = 0; i < Math.min(keys.length, ${this.MAX_OBJECT_PROPERTIES}); i++) {
-                      const key = keys[i];
-                      const value = obj[key];
-                      if (typeof value === 'string' && value.length > ${this.MAX_STRING_LENGTH}) {
-                        limitedObj[key] = value.substring(0, ${this.MAX_STRING_LENGTH}) + '... (truncated)';
-                      } else {
-                        limitedObj[key] = value;
-                      }
-                    }
-                    return { 
-                      __type: 'Object', 
-                      totalProperties: keys.length, 
-                      properties: limitedObj, 
-                      truncated: keys.length > ${this.MAX_OBJECT_PROPERTIES} 
-                    };
-                  }
-                })()`,
-                includeCommandLineAPI: true,
-                returnByValue: true,
-                awaitPromise: true,
-                replMode: false
-              });
-              
-              if (!limitedResponse.exceptionDetails && limitedResponse.result) {
-                result = limitedResponse.result.value;
-              } else {
-                result = response.result.value;
-              }
-            } catch (limitErr) {
-              result = response.result.value;
-            }
-          }
-        } else if (response.result.type === 'symbol') {
-          result = `Symbol(${response.result.description || ''})`;
+      if (typeCheckResponse.exceptionDetails) {
+        throw new Error(typeCheckResponse.exceptionDetails.exception?.description || typeCheckResponse.exceptionDetails.text);
+      }
+
+      const typeInfo = typeCheckResponse.result.value;
+
+      // Step 2: Handle special object types (Map, Set, Date, etc.)
+      if (typeInfo === '[object Map]') {
+        const mapResponse = await consoleEnv.client.send('Runtime.evaluate', {
+          expression: `(() => { const m = ${code}; return { __type: 'Map', size: m.size, entries: Array.from(m.entries()).slice(0, 10) }; })()`,
+          includeCommandLineAPI: true,
+          returnByValue: true,
+          awaitPromise: true,
+          replMode: false
+        });
+
+        if (!mapResponse.exceptionDetails) {
+          success = true;
+          result = mapResponse.result.value;
         } else {
-          // Prioritize value over description to preserve types (number, boolean, etc.)
-          result = response.result.value;
+          throw new Error(mapResponse.exceptionDetails.exception?.description || mapResponse.exceptionDetails.text);
+        }
+      } else if (typeInfo === '[object Set]') {
+        const setResponse = await consoleEnv.client.send('Runtime.evaluate', {
+          expression: `(() => { const s = ${code}; return { __type: 'Set', size: s.size, entries: Array.from(s.values()).slice(0, 10) }; })()`,
+          includeCommandLineAPI: true,
+          returnByValue: true,
+          awaitPromise: true,
+          replMode: false
+        });
+
+        if (!setResponse.exceptionDetails) {
+          success = true;
+          result = setResponse.result.value;
+        } else {
+          throw new Error(setResponse.exceptionDetails.exception?.description || setResponse.exceptionDetails.text);
+        }
+      } else if (typeInfo === '[object Date]') {
+        const dateResponse = await consoleEnv.client.send('Runtime.evaluate', {
+          expression: `(() => { const d = ${code}; return { __type: 'Date', isoString: d.toISOString(), timestamp: d.getTime() }; })()`,
+          includeCommandLineAPI: true,
+          returnByValue: true,
+          awaitPromise: true,
+          replMode: false
+        });
+
+        if (!dateResponse.exceptionDetails) {
+          success = true;
+          result = dateResponse.result.value;
+        } else {
+          throw new Error(dateResponse.exceptionDetails.exception?.description || dateResponse.exceptionDetails.text);
+        }
+      } else if (typeof typeInfo === 'string' && typeInfo.startsWith('[object') && typeInfo !== '[object Object]') {
+        // Handle other special objects (RegExp, Error, etc.) - exclude plain objects
+        const specialResponse = await consoleEnv.client.send('Runtime.evaluate', {
+          expression: `(() => { const obj = ${code}; if (obj instanceof RegExp) return { __type: 'RegExp', source: obj.source, flags: obj.flags }; else if (obj instanceof Error) return { __type: 'Error', name: obj.name, message: obj.message }; else return { __type: 'Object', constructor: obj.constructor.name }; })()`,
+          includeCommandLineAPI: true,
+          returnByValue: true,
+          awaitPromise: true,
+          replMode: false
+        });
+
+        if (!specialResponse.exceptionDetails) {
+          success = true;
+          result = specialResponse.result.value;
+        } else {
+          throw new Error(specialResponse.exceptionDetails.exception?.description || specialResponse.exceptionDetails.text);
+        }
+      } else {
+        // Step 3: For regular objects and primitives, try returnByValue with size limits
+        const response = await consoleEnv.client.send('Runtime.evaluate', {
+          expression: `(() => { const r = ${code}; if (typeof r === 'object' && r !== null && !Array.isArray(r)) { const keys = Object.keys(r); if (keys.length > ${this.MAX_OBJECT_PROPERTIES}) { const limited = {}; keys.slice(0, ${this.MAX_OBJECT_PROPERTIES}).forEach(k => limited[k] = r[k]); return limited; } } return r; })()`,
+          includeCommandLineAPI: true,
+          returnByValue: true,
+          awaitPromise: true,
+          replMode: false
+        });
+
+        if (response.exceptionDetails) {
+          throw new Error(response.exceptionDetails.exception?.description || response.exceptionDetails.text);
+        }
+
+        success = true;
+        result = response.result.value;
+
+        // Apply array length limit if result is an array
+        if (Array.isArray(result) && result.length > this.MAX_ARRAY_LENGTH) {
+          result = result.slice(0, this.MAX_ARRAY_LENGTH);
+        }
+
+        // Apply string length limit if result is a string
+        if (typeof result === 'string' && result.length > this.MAX_STRING_LENGTH) {
+          result = result.substring(0, this.MAX_STRING_LENGTH) + '... [truncated]';
         }
       }
     } catch (err) {
@@ -1821,5 +1797,13 @@ export class PageManager {
     this.initEdgePromise = null;
     
     this.pages.clear();
+  }
+
+  getVersionInfo(): { version: string; buildDate: string; timestamp: number } {
+    return {
+      version: PageManager.VERSION,
+      buildDate: PageManager.BUILD_DATE,
+      timestamp: Date.now()
+    };
   }
 }

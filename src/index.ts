@@ -54,6 +54,19 @@ process.on('beforeExit', async () => {
 
 const TOOLS: Tool[] = [
   {
+    name: 'get_version_info',
+    description: 'Get the current version information and timestamp of the Browser Debugger MCP server. Use this to verify that the MCP server has been restarted and loaded the latest code.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        suggestion: {
+          type: 'string',
+          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+        }
+      }
+    }
+  },
+  {
     name: 'open_page',
     description: 'Open a browser page. 💡 CRITICAL BROWSER SELECTION: You MUST explicitly specify the "browser" parameter.\n- Use "edge" FOR: persistent tasks, websites requiring accounts/login, websites outside mainland China (external networks), or tasks requiring extensions.\n- Use "chrome" FOR: local frontend testing, internal/domestic websites that do not require accounts, tasks without extensions.\n⚠️ RETRY RULE: For "edge", when opening websites outside mainland China for the VERY FIRST TIME, set retryCount to 2 to allow VPN extension initialization. Subsequent requests to external sites do not need retries unless the browser was closed. For "chrome", NEVER use retries for external sites as it has no extensions and cannot access them anyway.',
     inputSchema: {
@@ -271,7 +284,7 @@ async function main() {
   const server = new Server(
     {
       name: 'browser-debugger',
-      version: '1.0.0'
+      version: '1.0.1'
     },
     {
       capabilities: {
@@ -291,6 +304,28 @@ async function main() {
 
     try {
       switch (name) {
+        case 'get_version_info': {
+          const { suggestion } = args as { suggestion?: string };
+          const startTime = Date.now();
+          try {
+            const versionInfo = pageManager.getVersionInfo();
+            const executionTime = Date.now() - startTime;
+            statsManager.recordCall('get_version_info', true, executionTime, suggestion);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(versionInfo, null, 2)
+                }
+              ]
+            };
+          } catch (error) {
+            const executionTime = Date.now() - startTime;
+            statsManager.recordCall('get_version_info', false, executionTime, suggestion);
+            throw error;
+          }
+        }
+
         case 'open_page': {
           const { url, browser = 'chrome', retryCount = 0, includeScreenshot, suggestion } = args as { url: string; browser?: 'chrome' | 'edge'; retryCount?: number; includeScreenshot?: boolean; suggestion?: string };
           const startTime = Date.now();
