@@ -1407,7 +1407,7 @@ export class PageManager {
     };
   }
 
-  async inspectElement(pageId: string, selector: string, stylesToGet?: string[]): Promise<any> {
+  async inspectElement(pageId: string, selector: string, stylesToGet?: string[], format: 'json' | 'markdown' = 'json'): Promise<any> {
     const pageInfo = this.pages.get(pageId);
     if (!pageInfo) return { success: false, error: `Page with id ${pageId} not found` };
 
@@ -1473,8 +1473,137 @@ export class PageManager {
         return result;
       }, stylesToGet);
 
+      // If markdown format is requested, convert the HTML to structured markdown
+      if (format === 'markdown') {
+        const markdown = await element.evaluate(el => {
+          const html = el.outerHTML;
+          const sections: string[] = [];
+
+          sections.push('## 页面结构\n');
+
+          const elements = Array.from(document.querySelectorAll('*'));
+
+          const interactiveElements: Array<{tag: string, id: string, type: string, className: string, text: string, placeholder: string, selector: string}> = [];
+          const structuralElements: Array<{tag: string, id: string, className: string, text: string, selector: string}> = [];
+
+          elements.forEach(el => {
+            const tagName = el.tagName.toLowerCase();
+            const id = el.id ? el.id : '';
+            const className = el.className ? String(el.className) : '';
+            const type = (el as any).type ? (el as any).type : '';
+            const placeholder = (el as any).placeholder ? (el as any).placeholder : '';
+
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            const isVisible = style.display !== 'none' && 
+                              style.visibility !== 'hidden' && 
+                              style.opacity !== '0' &&
+                              rect.width > 0 && 
+                              rect.height > 0;
+
+            const textNodes = Array.from(el.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
+            const text = textNodes.map(node => node.textContent?.trim()).filter(Boolean).join(' ').substring(0, 50) || '';
+
+            const selectorParts: string[] = [tagName];
+            if (id) selectorParts.push(`#${id}`);
+            if (className) {
+              const classes = className.split(' ').filter(c => c).map(c => `.${c}`).join('');
+              if (classes) selectorParts.push(classes);
+            }
+            const selector = selectorParts.join('');
+
+            const eventListeners = ['onclick', 'onmouseover', 'onmouseout', 'onmousedown', 'onmouseup', 'onchange', 'onsubmit', 'onfocus', 'onblur', 'onkeydown', 'onkeyup', 'onkeypress'];
+            const hasEventListeners = eventListeners.some(event => (el as any)[event]);
+
+            if (['button', 'input', 'select', 'textarea', 'a'].includes(tagName)) {
+              if (isVisible) {
+                interactiveElements.push({
+                  tag: tagName,
+                  id,
+                  type,
+                  className,
+                  text,
+                  placeholder,
+                  selector
+                });
+              }
+            } else if (['div', 'section', 'article', 'header', 'footer', 'nav', 'aside', 'main', 'form'].includes(tagName)) {
+              if (isVisible && (text || hasEventListeners)) {
+                structuralElements.push({
+                  tag: tagName,
+                  id,
+                  className,
+                  text,
+                  selector
+                });
+              }
+            }
+          });
+
+          if (interactiveElements.length > 0) {
+            sections.push('### 交互元素\n');
+            interactiveElements.forEach(el => {
+              const elementLabel = el.tag === 'button' ? '按钮' : 
+                                   el.tag === 'input' ? '输入框' :
+                                   el.tag === 'select' ? '下拉选择' :
+                                   el.tag === 'textarea' ? '文本区域' : '链接';
+              sections.push(`**${elementLabel}**\n`);
+              sections.push(`- 标签: \`<${el.tag}>\`\n`);
+              if (el.id) sections.push(`- ID: \`${el.id}\`\n`);
+              if (el.type) sections.push(`- 类型: \`${el.type}\`\n`);
+              if (el.className) sections.push(`- 类名: \`${el.className}\`\n`);
+              if (el.text) sections.push(`- 文本: ${el.text}\n`);
+              if (el.placeholder) sections.push(`- 占位符: ${el.placeholder}\n`);
+              sections.push(`- 选择器: \`${el.selector}\`\n`);
+              sections.push('\n');
+            });
+          }
+
+          if (structuralElements.length > 0) {
+            sections.push('### 结构元素\n');
+            structuralElements.forEach(el => {
+              sections.push(`**${el.tag}**\n`);
+              if (el.id) sections.push(`- ID: \`${el.id}\`\n`);
+              if (el.className) sections.push(`- 类名: \`${el.className}\`\n`);
+              if (el.text) sections.push(`- 文本: ${el.text}\n`);
+              sections.push(`- 选择器: \`${el.selector}\`\n`);
+              sections.push('\n');
+            });
+          }
+
+          sections.push('### 完整HTML\n');
+          sections.push('```html\n');
+          sections.push(html);
+          sections.push('\n```\n');
+
+          const fullMarkdown = sections.join('');
+          const htmlSectionStart = fullMarkdown.indexOf('### 完整HTML');
+          const shortMarkdown = htmlSectionStart > 0 ? fullMarkdown.substring(0, htmlSectionStart).trim() : fullMarkdown;
+
+          return {
+            fullMarkdown,
+            shortMarkdown
+          };
+        });
+
+        const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+        const markdownFilePath = path.join(rootDir, 'page_structure.md');
+        await fs.writeFile(markdownFilePath, markdown.fullMarkdown, 'utf-8');
+
+        return { 
+          success: true, 
+          format: 'markdown',
+          markdown: markdown.shortMarkdown,
+          markdownFilePath,
+          selector, 
+          isVisible,
+          boundingBox: boundingBox || 'Element is not rendered or has no layout box (e.g. display: none)'
+        };
+      }
+
       return { 
         success: true, 
+        format: 'json',
         selector, 
         isVisible, 
         boundingBox: boundingBox || 'Element is not rendered or has no layout box (e.g. display: none)', 

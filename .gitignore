@@ -72,6 +72,7 @@ stats.json
 # Documentation reports
 BUG_FIXES_SUMMARY.md
 TEST_REPORT.md
+page_structure.md
 
 # OS specific
 Thumbs.db

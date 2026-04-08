@@ -55,35 +55,35 @@ process.on('beforeExit', async () => {
 const TOOLS: Tool[] = [
   {
     name: 'get_version_info',
-    description: 'Get the current version information and timestamp of the Browser Debugger MCP server. Use this to verify that the MCP server has been restarted and loaded the latest code.',
+    description: '取此服务器之时辰版本，以验其已重启并载新码。',
     inputSchema: {
       type: 'object',
       properties: {
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       }
     }
   },
   {
     name: 'simulate_action',
-    description: 'Perform native browser actions on an element. 💡 EXPERT GUIDELINE: When testing UI interactions (e.g., buttons not responding, modals not opening in Vue/React), NEVER use JavaScript .click(). ALWAYS use this tool to simulate real physical mouse/keyboard events to guarantee the framework catches the action. For drag operations, use pressDown, moveTo, and release in sequence.',
+    description: '施真机鼠标键盘之动于元素。💡试交互时（如钮不响、框不开），勿用JS点击，必用此器以效真动。拖拽时依次用pressDown、moveTo、release。',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: { type: 'string' },
-        selector: { type: 'string', description: 'CSS selector of the target element. Required for click, hover, fill, focus actions. Optional for pressDown, release, moveTo (use x/y coordinates instead)' },
-        action: { type: 'string', enum:['click', 'hover', 'fill', 'focus', 'pressDown', 'release', 'moveTo'], description: 'The action to perform. pressDown: press mouse down on element (for drag start). release: release mouse button (for drag end). moveTo: move mouse to target coordinates or element (supports nonlinear paths for realistic dragging)' },
-        value: { type: 'string', description: 'The text to type if action is "fill"' },
-        x: { type: 'number', description: 'X coordinate to move to when action is "moveTo" or coordinate for pressDown/release' },
-        y: { type: 'number', description: 'Y coordinate to move to when action is "moveTo" or coordinate for pressDown/release' },
-        targetSelector: { type: 'string', description: 'CSS selector of target element to move to when action is "moveTo" (alternative to x/y)' },
-        steps: { type: 'number', description: 'Number of intermediate mouse movement steps for moveTo action. Default: 10' },
-        nonlinear: { type: 'boolean', description: 'Enable nonlinear path for moveTo action to simulate realistic human-like mouse movement with random variations. Default: false' },
+        selector: { type: 'string', description: '目标元素之CSS选择器。click、hover、fill、focus需之，pressDown、release、moveTo可用坐标代之' },
+        action: { type: 'string', enum:['click', 'hover', 'fill', 'focus', 'pressDown', 'release', 'moveTo'], description: '所施之动。pressDown：按下鼠标以始拖。release：松开以终拖。moveTo：移鼠标至目标（可曲路以效真）' },
+        value: { type: 'string', description: '若动为fill，则填此文' },
+        x: { type: 'number', description: 'moveTo之横坐标，或pressDown/release之坐标' },
+        y: { type: 'number', description: 'moveTo之纵坐标，或pressDown/release之坐标' },
+        targetSelector: { type: 'string', description: 'moveTo时目标元素之CSS选择器（可代x/y）' },
+        steps: { type: 'number', description: 'moveTo时移动步数。默认：10' },
+        nonlinear: { type: 'boolean', description: 'moveTo时用曲路以效真。默认：否' },
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       },
       required: ['pageId', 'action']
@@ -91,32 +91,32 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'open_page',
-    description: 'Open a browser page. 💡 CRITICAL BROWSER SELECTION: You MUST explicitly specify the "browser" parameter.\n- Use "edge" FOR: persistent tasks, websites requiring accounts/login, websites outside mainland China (external networks), or tasks requiring extensions.\n- Use "chrome" FOR: local frontend testing, internal/domestic websites that do not require accounts, tasks without extensions.\n⚠️ RETRY RULE: For "edge", when opening websites outside mainland China for the VERY FIRST TIME, set retryCount to 2 to allow VPN extension initialization. Subsequent requests to external sites do not need retries unless the browser was closed. For "chrome", NEVER use retries for external sites as it has no extensions and cannot access them anyway.',
+    description: '开一网页。💡择器之要：必明指browser参数。用edge于持久之务、需登录之站、海外之网、需扩展之务。用chrome于本地前端试测、国内无需登录之站、无需扩展之务。⚠️重试之则：edge首次开海外网时，设retryCount为2以备VPN扩展初始化。后无需重试，除非浏览器已闭。chrome无需重试，因其无扩展。',
     inputSchema: {
       type: 'object',
       properties: {
         url: {
           type: 'string',
-          description: 'The URL to open.'
+          description: '欲开之网址'
         },
         browser: {
           type: 'string',
           enum: ['chrome', 'edge'],
-          description: 'Explicitly select which browser engine to use based on the task requirements.',
+          description: '明指用何种浏览器',
           default: 'chrome'
         },
         retryCount: {
           type: 'number',
-          description: 'Number of retry attempts if page loading fails. Default: 0. ONLY use for "edge" when accessing external networks for the first time.',
+          description: '载页失败时重试次数。默认：0。仅edge首次连外网时用之。',
           default: 0
         },
         includeScreenshot: {
                   type: 'boolean',
-                  description: '⚠️ EXTREME WARNING: NEVER set to true unless explicitly requested by user in very clear terms. This will return a base64-encoded PNG screenshot that consumes EXTREME amounts of tokens (thousands to tens of thousands). The AI model cannot effectively use or analyze screenshots. Only use when user explicitly demands a screenshot or testing scenarios specifically require it. Default: false (strongly recommended).'
+                  description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。'
                 },
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       },
       required: ['url']
@@ -124,30 +124,30 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'refresh_page',
-    description: 'Refresh/reload an already opened page. Returns page information after reload including status, title, and load time. Useful for testing dynamic content updates without creating new pages.',
+    description: '重载已开之页。返页息（状态、标题、载时）。宜于试动态更新而无需新开页。',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: {
           type: 'string',
-          description: 'The ID of the page to refresh'
+          description: '欲重载之页ID'
         },
         waitUntil: {
           type: 'string',
           enum: ['load', 'domcontentloaded', 'networkidle'],
-          description: 'When to consider the page loaded. Default: "domcontentloaded"'
+          description: '何时视为载毕。默认："domcontentloaded"'
         },
         timeout: {
           type: 'number',
-          description: 'Maximum navigation time in milliseconds. Default: 30000'
+          description: '最大载时（毫秒）。默认：30000'
         },
         includeScreenshot: {
           type: 'boolean',
-          description: '⚠️ EXTREME WARNING: NEVER set to true unless explicitly requested by user in very clear terms. This will return a base64-encoded PNG screenshot that consumes EXTREME amounts of tokens (thousands to tens of thousands). The AI model cannot effectively use or analyze screenshots. Only use when user explicitly demands a screenshot or testing scenarios specifically require it. Default: false (strongly recommended).'
+          description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。'
         },
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       },
       required: ['pageId']
@@ -155,25 +155,25 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'execute_js',
-    description: 'Execute JavaScript on a page. CRITICAL: To return an object, wrap it in parentheses: ({ a: 1 }). Never write bare { a: 1 } — that causes a syntax error.',
+    description: '于页上执行JS。要诀：欲返对象，必以括弧包之：({ a: 1 })。切勿写裸{ a: 1 }，此致语法错。',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: {
           type: 'string',
-          description: 'The ID of the page to execute JavaScript on'
+          description: '欲执行JS之页ID'
         },
         script: {
           type: 'string',
-          description: 'The JavaScript code to execute'
+          description: '欲执行之JS代码'
         },
         includeScreenshot: {
           type: 'boolean',
-          description: '⚠️ EXTREME WARNING: NEVER set to true unless explicitly requested by user in very clear terms. This will return a base64-encoded PNG screenshot that consumes EXTREME amounts of tokens (thousands to tens of thousands). The AI model cannot effectively use or analyze screenshots. Only use when user explicitly demands a screenshot or testing scenarios specifically require it. Default: false (strongly recommended).'
+          description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。'
         },
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       },
       required: ['pageId', 'script']
@@ -181,17 +181,17 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'close_page',
-    description: 'Close a specific page or close the entire browser context with "all". Use "all" to completely shutdown the browser (this saves all persistent data). 事讫用尽，宜罢诸简。',
+    description: '闭指定之页或闭全器（用"all"）。用"all"则全关并存持久之据。事讫用尽，宜罢诸简。',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: {
           type: 'string',
-          description: 'The ID of the page to close, or "all" to close the entire browser context'
+          description: '欲闭之页ID，或"all"以闭全器'
         },
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       },
       required: ['pageId']
@@ -199,29 +199,29 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'list_pages',
-    description: 'List all currently open pages with their IDs, URLs, and age information',
+    description: '列现开诸页及其ID、网址、开时',
     inputSchema: {
       type: 'object',
       properties: {
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       }
     }
   },
   {
     name: 'console_execute',
-    description: 'Execute JavaScript in a console environment using CDP. Maintains context, allows variables to persist, and supports top-level await (like Chrome Console). Environment is automatically created if it does not exist.',
+    description: '于CDP控台环境中执行JS。存上下文，变量持久，支持顶层await（如Chrome控台）。环境无则自建。',
     inputSchema: {
       type: 'object',
       properties: {
-        pageId: { type: 'string', description: 'The ID of the page' },
-        code: { type: 'string', description: 'The JavaScript code to execute' },
-        resetContext: { type: 'boolean', description: 'If true, destroys the existing console environment and starts a fresh one before executing. Default: false' },
+        pageId: { type: 'string', description: '页ID' },
+        code: { type: 'string', description: '欲执行之JS代码' },
+        resetContext: { type: 'boolean', description: '若真，则毁旧环境新建之。默认：否' },
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       },
       required:['pageId', 'code']
@@ -229,14 +229,14 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'get_console_history',
-    description: 'Get the execution history from a console environment. Use only when you need to recall previously defined variables or functions.',
+    description: '取控台环境之执行史。仅于需忆先前所定变量或函数时用之。',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: { type: 'string' },
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       },
       required:['pageId']
@@ -244,20 +244,25 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'inspect_element',
-    description: 'Inspect a specific DOM element to get its HTML, bounding box, and computed CSS. 💡 EXPERT GUIDELINE: When debugging styling issues, invisible elements, or overlapping layers, DO NOT GUESS. Use this tool to verify the actual rendered size (boundingBox) and computed CSS box-model properties to diagnose the exact problem.',
+    description: '检视指定DOM元素之HTML、边框、CSS。💡调样式、隐形元素或重叠层时，勿臆测。用此器以验实尺寸（边框）及CSS盒模型属性，以诊其症。',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: { type: 'string' },
-        selector: { type: 'string', description: 'CSS selector of the element to inspect' },
+        selector: { type: 'string', description: '欲检视元素之CSS选择器' },
         stylesToGet: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Optional list of specific CSS property names to retrieve. If omitted, returns a comprehensive set of box-model and layout styles automatically.'
+          description: '可选之特定CSS属性名表。若略，则自动返盒模型与布局样式之全貌。'
+        },
+        format: {
+          type: 'string',
+          enum: ['json', 'markdown'],
+          description: '输出格式："json"（默认）返结构化JSON含CSS；"markdown"返易读之Markdown含元素ID、类型、标签、选择器。'
         },
         suggestion: {
           type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+          description: '若器屡败、晦涩、体验差，请报之'
         }
       },
       required:['pageId', 'selector']
@@ -503,15 +508,16 @@ async function main() {
         }
 
         case 'inspect_element': {
-          const { pageId, selector, stylesToGet, suggestion } = args as { 
+          const { pageId, selector, stylesToGet, format, suggestion } = args as { 
             pageId: string; 
             selector: string; 
             stylesToGet?: string[];
+            format?: 'json' | 'markdown';
             suggestion?: string 
           };
           const startTime = Date.now();
           try {
-            const result = await pageManager.inspectElement(pageId, selector, stylesToGet); 
+            const result = await pageManager.inspectElement(pageId, selector, stylesToGet, format); 
             const executionTime = Date.now() - startTime;
             statsManager.recordCall('inspect_element', true, executionTime, suggestion);
             return { content:[{ type: 'text', text: JSON.stringify(result, null, 2) }] };
