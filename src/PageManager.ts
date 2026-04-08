@@ -676,13 +676,13 @@ export class PageManager {
 
     let finalError = error;
     let errorCode: string | undefined;
-    if (existingSameUrlCount >= 1) {
-      finalError = `Duplicate URL detected: You have opened ${existingSameUrlCount + 1} pages with the same URL. Please use refresh_page instead or close redundant pages.`;
+    if (existingSameUrlCount >= 3) {
+      finalError = `Duplicate URL detected: You have opened >= ${existingSameUrlCount + 1} pages with the same URL. Please use refresh_page instead or close redundant pages.`;
       errorCode = 'DUPLICATE_URL';
     }
 
     let finalInfo = undefined;
-    if (this.pages.size > 5) {
+    if (this.pages.size >= 5) {
       finalInfo = "除非你必要的需要所有的页面，否则请关闭不必要的页面";
     }
 
