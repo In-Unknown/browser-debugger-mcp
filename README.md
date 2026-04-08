@@ -113,10 +113,6 @@ Create a `browser-config.json` file in the project root:
   - Parameters: `pageId`, `suggestion`
   - Returns: Array of past executions with timestamps
 
-- **`destroy_console_environment`**: Reset console environment
-  - Parameters: `pageId`, `suggestion`
-  - Returns: Success status
-
 #### Page Interaction
 
 - **`inspect_element`**: Inspect a DOM element

@@ -364,6 +364,7 @@ export class PageManager {
     loadTime: number;
     openedAt: number;
     error?: string;
+    errorCode?: string;
     performance?: {
       domContentLoaded: number;
       loadComplete: number;
@@ -672,9 +673,18 @@ export class PageManager {
     const existingSameUrlCount = Array.from(this.pages.entries()).filter(([pageId, p]) =>
       pageId !== id && this.normalizeUrl(p.url) === normalizedFinalUrl
     ).length;
-    const info = existingSameUrlCount >= 1 ?
-      `You have created ${existingSameUrlCount + 1} identical pages with this URL. If you need to refresh the page, please use the refresh_page tool instead. If a refresh is required please close any unnecessary pages.` :
-      undefined;
+
+    let finalError = error;
+    let errorCode: string | undefined;
+    if (existingSameUrlCount >= 1) {
+      finalError = `Duplicate URL detected: You have opened ${existingSameUrlCount + 1} pages with the same URL. Please use refresh_page instead or close redundant pages.`;
+      errorCode = 'DUPLICATE_URL';
+    }
+
+    let finalInfo = undefined;
+    if (this.pages.size > 5) {
+      finalInfo = "除非你必要的需要所有的页面，否则请关闭不必要的页面";
+    }
 
     return {
       id,
@@ -687,7 +697,8 @@ export class PageManager {
       errors,
       loadTime,
       openedAt,
-      error,
+      error: finalError,
+      errorCode,
       performance: performanceMetrics,
       metadata: {
         viewport,
@@ -703,7 +714,7 @@ export class PageManager {
         note: isLocalDevServer ? `This is a local development server serving a web page${detectedFrameworks.length > 0 ? `. Detected frameworks: ${detectedFrameworks.join(', ')}` : ''}. The page is accessible via browser and can be interacted with normally.` : undefined
       },
       screenshot,
-      info,
+      info: finalInfo,
       browserEngineUsed: browser
     };
   }

@@ -67,6 +67,29 @@ const TOOLS: Tool[] = [
     }
   },
   {
+    name: 'simulate_action',
+    description: 'Perform native browser actions on an element. 💡 EXPERT GUIDELINE: When testing UI interactions (e.g., buttons not responding, modals not opening in Vue/React), NEVER use JavaScript .click(). ALWAYS use this tool to simulate real physical mouse/keyboard events to guarantee the framework catches the action. For drag operations, use pressDown, moveTo, and release in sequence.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: { type: 'string' },
+        selector: { type: 'string', description: 'CSS selector of the target element. Required for click, hover, fill, focus actions. Optional for pressDown, release, moveTo (use x/y coordinates instead)' },
+        action: { type: 'string', enum:['click', 'hover', 'fill', 'focus', 'pressDown', 'release', 'moveTo'], description: 'The action to perform. pressDown: press mouse down on element (for drag start). release: release mouse button (for drag end). moveTo: move mouse to target coordinates or element (supports nonlinear paths for realistic dragging)' },
+        value: { type: 'string', description: 'The text to type if action is "fill"' },
+        x: { type: 'number', description: 'X coordinate to move to when action is "moveTo" or coordinate for pressDown/release' },
+        y: { type: 'number', description: 'Y coordinate to move to when action is "moveTo" or coordinate for pressDown/release' },
+        targetSelector: { type: 'string', description: 'CSS selector of target element to move to when action is "moveTo" (alternative to x/y)' },
+        steps: { type: 'number', description: 'Number of intermediate mouse movement steps for moveTo action. Default: 10' },
+        nonlinear: { type: 'boolean', description: 'Enable nonlinear path for moveTo action to simulate realistic human-like mouse movement with random variations. Default: false' },
+        suggestion: {
+          type: 'string',
+          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
+        }
+      },
+      required: ['pageId', 'action']
+    }
+  },
+  {
     name: 'open_page',
     description: 'Open a browser page. 💡 CRITICAL BROWSER SELECTION: You MUST explicitly specify the "browser" parameter.\n- Use "edge" FOR: persistent tasks, websites requiring accounts/login, websites outside mainland China (external networks), or tasks requiring extensions.\n- Use "chrome" FOR: local frontend testing, internal/domestic websites that do not require accounts, tasks without extensions.\n⚠️ RETRY RULE: For "edge", when opening websites outside mainland China for the VERY FIRST TIME, set retryCount to 2 to allow VPN extension initialization. Subsequent requests to external sites do not need retries unless the browser was closed. For "chrome", NEVER use retries for external sites as it has no extensions and cannot access them anyway.',
     inputSchema: {
@@ -220,21 +243,6 @@ const TOOLS: Tool[] = [
     }
   },
   {
-    name: 'destroy_console_environment',
-    description: 'Destroy a console environment and release its CDP resources. Use this when you are completely done with console debugging for a page.',
-    inputSchema: {
-      type: 'object',
-      properties: { 
-        pageId: { type: 'string' },
-        suggestion: {
-          type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
-        }
-      },
-      required: ['pageId']
-    }
-  },
-  {
     name: 'inspect_element',
     description: 'Inspect a specific DOM element to get its HTML, bounding box, and computed CSS. 💡 EXPERT GUIDELINE: When debugging styling issues, invisible elements, or overlapping layers, DO NOT GUESS. Use this tool to verify the actual rendered size (boundingBox) and computed CSS box-model properties to diagnose the exact problem.',
     inputSchema: {
@@ -253,29 +261,6 @@ const TOOLS: Tool[] = [
         }
       },
       required:['pageId', 'selector']
-    }
-  },
-  {
-    name: 'simulate_action',
-    description: 'Perform native browser actions on an element. 💡 EXPERT GUIDELINE: When testing UI interactions (e.g., buttons not responding, modals not opening in Vue/React), NEVER use JavaScript .click(). ALWAYS use this tool to simulate real physical mouse/keyboard events to guarantee the framework catches the action. For drag operations, use pressDown, moveTo, and release in sequence.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        pageId: { type: 'string' },
-        selector: { type: 'string', description: 'CSS selector of the target element. Required for click, hover, fill, focus actions. Optional for pressDown, release, moveTo (use x/y coordinates instead)' },
-        action: { type: 'string', enum:['click', 'hover', 'fill', 'focus', 'pressDown', 'release', 'moveTo'], description: 'The action to perform. pressDown: press mouse down on element (for drag start). release: release mouse button (for drag end). moveTo: move mouse to target coordinates or element (supports nonlinear paths for realistic dragging)' },
-        value: { type: 'string', description: 'The text to type if action is "fill"' },
-        x: { type: 'number', description: 'X coordinate to move to when action is "moveTo" or coordinate for pressDown/release' },
-        y: { type: 'number', description: 'Y coordinate to move to when action is "moveTo" or coordinate for pressDown/release' },
-        targetSelector: { type: 'string', description: 'CSS selector of target element to move to when action is "moveTo" (alternative to x/y)' },
-        steps: { type: 'number', description: 'Number of intermediate mouse movement steps for moveTo action. Default: 10' },
-        nonlinear: { type: 'boolean', description: 'Enable nonlinear path for moveTo action to simulate realistic human-like mouse movement with random variations. Default: false' },
-        suggestion: {
-          type: 'string',
-          description: 'Report issues if tool fails repeatedly, is confusing, or poor UX after multiple calls'
-        }
-      },
-      required: ['pageId', 'action']
     }
   }
 ];
@@ -339,14 +324,15 @@ async function main() {
               }
               result = await pageManager.openPage(url, { browser, includeScreenshot });
               const executionTime = Date.now() - startTime;
-              statsManager.recordCall('open_page', true, executionTime, suggestion);
+              statsManager.recordCall('open_page', result.error === undefined, executionTime, suggestion);
               return {
                 content: [
                   {
                     type: 'text',
                     text: JSON.stringify(result, null, 2)
                   }
-                ]
+                ],
+                isError: result.error !== undefined
               };
             } catch (error) {
               lastError = error;
@@ -512,23 +498,6 @@ async function main() {
           } catch (error) {
             const executionTime = Date.now() - startTime;
             statsManager.recordCall('get_console_history', false, executionTime, suggestion);
-            throw error;
-          }
-        }
-
-        case 'destroy_console_environment': {
-          const { pageId, suggestion } = args as { pageId: string; suggestion?: string }; 
-          const startTime = Date.now();
-          try {
-            const result = await pageManager.destroyConsoleEnvironment(pageId); 
-            const executionTime = Date.now() - startTime;
-            statsManager.recordCall('destroy_console_environment', true, executionTime, suggestion);
-            return { 
-              content:[{ type: 'text', text: JSON.stringify(result, null, 2) }] 
-            };
-          } catch (error) {
-            const executionTime = Date.now() - startTime;
-            statsManager.recordCall('destroy_console_environment', false, executionTime, suggestion);
             throw error;
           }
         }

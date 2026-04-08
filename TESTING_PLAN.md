@@ -24,8 +24,7 @@
     - [测试用例 3.1.3: 错误处理与参数测试](#测试用例-313-错误处理与参数测试)
   - [3.2 console_execute 测试](#32-console_execute-测试)
   - [3.3 get_console_history 测试](#33-get_console_history-测试)
-  - [3.4 destroy_console_environment 测试](#34-destroy_console_environment-测试)
-  - [3.5 预览生成测试](#35-预览生成测试)
+  - [3.4 预览生成测试](#34-预览生成测试)
     - [测试用例 3.5.1: 综合预览测试](#测试用例-351-综合预览测试基本类型数组对象函数字符串dom嵌套特殊类型循环引用)
 - [四、页面检查与操作测试](#四页面检查与操作测试)
   - [4.1 inspect_element 测试](#41-inspect_element-测试)
@@ -114,7 +113,7 @@
 ## 一、工具可用性测试
 
 ### 测试目标
-验证所有10个MCP工具都能正确响应
+验证所有9个MCP工具都能正确响应
 
 ### 测试步骤
 
@@ -127,7 +126,7 @@
 
 #### 1.2 验证工具列表
 **通过MCP客户端检查：**
-- 以下10个工具都在工具列表中：
+- 以下9个工具都在工具列表中：
   1. `mcp_browser-debugger_open_page`
   2. `mcp_browser-debugger_refresh_page`
   3. `mcp_browser-debugger_execute_js`
@@ -135,11 +134,10 @@
   5. `mcp_browser-debugger_list_pages`
   6. `mcp_browser-debugger_console_execute`
   7. `mcp_browser-debugger_get_console_history`
-  8. `mcp_browser-debugger_destroy_console_environment`
-  9. `mcp_browser-debugger_inspect_element`
-  10. `mcp_browser-debugger_simulate_action`
+  8. `mcp_browser-debugger_inspect_element`
+  9. `mcp_browser-debugger_simulate_action`
 
-**通过标准：** 所有10个工具都能被正确调用
+**通过标准：** 所有9个工具都能被正确调用
 
 ---
 
@@ -2206,50 +2204,9 @@ Get-Process msedge | Select-Object Id, ProcessName, Path | Format-Table
 
 ---
 
-### 3.4 destroy_console_environment 测试
+### 3.4 预览生成测试
 
-#### 测试用例 3.4.1: 销毁控制台环境
-**前置步骤：** 打开页面并执行一些 console_execute 调用
-
-**调用：**
-```json
-{
-  "pageId": "<pageId>"
-}
-```
-
-**预期结果：**
-- `success: true`
-- 控制台环境被销毁
-- 后续调用 `console_execute` 时会重新创建环境
-
-**验证点：**
-- ✓ 环境正确销毁
-- ✓ CDP资源被释放
-- ✓ 可以重新创建环境
-
----
-
-#### 测试用例 3.4.2: 销毁不存在页面的环境（错误处理）
-**调用：**
-```json
-{
-  "pageId": "non-existent-page"
-}
-```
-
-**预期结果：**
-- `success: false`
-- 包含错误信息
-
-**验证点：**
-- ✓ 错误处理正确
-
----
-
-### 3.5 预览生成测试
-
-#### 测试用例 3.5.1: 综合预览测试（基本类型·数组·对象·函数·字符串·DOM·嵌套·特殊类型·循环引用）
+#### 测试用例 3.4.1: 综合预览测试（基本类型·数组·对象·函数·字符串·DOM·嵌套·特殊类型·循环引用）
 **前置步骤：** 打开页面
 
 **步骤1：基本类型预览**
@@ -4523,7 +4480,6 @@ Get-Process msedge | Select-Object Id, ProcessName, Path | Format-Table
    - `execute_js` → `{"pageId": "<pageId>", "script": "1+1", "suggestion": "测试反馈"}`
    - `console_execute` → `{"pageId": "<pageId>", "code": "1+1", "suggestion": "测试反馈"}`
    - `get_console_history` → `{"pageId": "<pageId>", "suggestion": "测试反馈"}`
-   - `destroy_console_environment` → `{"pageId": "<pageId>", "suggestion": "测试反馈"}`
    - `inspect_element` → `{"pageId": "<pageId>", "selector": "body", "suggestion": "测试反馈"}`
    - `simulate_action` → `{"pageId": "<pageId>", "action": "click", "selector": "button", "suggestion": "测试反馈"}`
 2. 读取 `stats.json` 文件
@@ -4536,7 +4492,7 @@ Get-Process msedge | Select-Object Id, ProcessName, Path | Format-Table
 **验证点：**
 - ✓ suggestion参数不影响工具核心功能
 - ✓ 用户反馈被正确记录到stats.json
-- ✓ 所有10个工具的suggestion功能一致
+- ✓ 所有9个工具的suggestion功能一致
 
 ---
 
