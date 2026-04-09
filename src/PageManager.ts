@@ -1482,6 +1482,7 @@ export class PageManager {
           const filteredMap = new Map<Element, { 
             tag: string; id: string; type: string; text: string; 
             placeholder: string; selector: string; isInteractive: boolean; 
+            svg: string; 
           }>();
           let aiIdCounter = 1;
 
@@ -1498,9 +1499,10 @@ export class PageManager {
               rect.height > 0;
             if (!isVisible) return;
 
-            const isInteractive = ['button','input','select','textarea','a'].includes(tagName);
-            const isStructural  = ['div','section','article','header','footer','nav','aside','main','form'].includes(tagName);
-            if (!isInteractive && !isStructural) return;
+            const isNativeInteractive = ['button','input','select','textarea','a'].includes(tagName);
+            const isStructural  = ['div','section','article','header','footer','nav','aside','main','form','span'].includes(tagName);
+            
+            if (!isNativeInteractive && !isStructural) return;
 
             const text = Array.from(elItem.childNodes) 
               .filter(n => n.nodeType === Node.TEXT_NODE) 
@@ -1509,10 +1511,26 @@ export class PageManager {
               .join(' ') 
               .substring(0, 60);
 
-            const hasEvents = ['onclick','onchange','onsubmit','onfocus','onblur'] 
+            const hasInlineEvents = ['onclick','onchange','onsubmit','onfocus','onblur'] 
               .some(ev => !!(elItem as any)[ev]);
 
+            const hasPointerCursor = style.cursor === 'pointer';
+            const hasInteractiveRole = ['button','link','menuitem','tab','checkbox','radio'].includes(elItem.getAttribute('role') || '');
+            const hasTabindex = elItem.hasAttribute('tabindex') && elItem.getAttribute('tabindex') !== '-1';
+            
+            const className = elItem.className || '';
+            const hasInteractiveClass = /btn|button|click|action|interactive|menu|nav|tab|icon/i.test(className);
+            const hasDataIcon = elItem.hasAttribute('data-icon');
+            const hasDataProps = Array.from(elItem.attributes).some(attr => attr.name.startsWith('data-'));
+            
+            const hasEvents = hasInlineEvents || hasPointerCursor || hasInteractiveRole || hasTabindex || hasInteractiveClass || hasDataIcon;
+            
+            const isInteractive = isNativeInteractive || hasEvents;
+
             if (isStructural && !text && !hasEvents) return;
+
+            const svgElement = elItem.querySelector('svg');
+            const svg = svgElement ? svgElement.outerHTML.substring(0, 500) : '';
 
             const uniqueAiId = `a${aiIdCounter++}`;
             elItem.setAttribute('data-ai-id', uniqueAiId);
@@ -1525,6 +1543,7 @@ export class PageManager {
               placeholder: (elItem as any).placeholder || '', 
               selector:    `[data-ai-id="${uniqueAiId}"]`, 
               isInteractive, 
+              svg, 
             });
           });
 
@@ -1562,6 +1581,7 @@ export class PageManager {
                 if (info.type)        lines.push(`${indent}- 类型: \`${info.type}\``);
                 if (info.text)        lines.push(`${indent}- 文本: ${info.text}`);
                 if (info.placeholder) lines.push(`${indent}- 占位符: ${info.placeholder}`);
+                if (info.svg)         lines.push(`${indent}- 图标(SVG): \n${indent}  \`\`\`xml\n${indent}  ${info.svg}\n${indent}  \`\`\``);
                 lines.push('');
               } else {
                 const tag    = node.tagName.toLowerCase();
