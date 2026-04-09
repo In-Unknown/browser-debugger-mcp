@@ -1477,121 +1477,114 @@ export class PageManager {
       if (format === 'markdown') {
         const markdown = await element.evaluate(el => {
           const html = el.outerHTML;
-          const sections: string[] = [];
 
-          sections.push('## 页面结构\n');
-
-          const elements = Array.from(document.querySelectorAll('*'));
-
-          const interactiveElements: Array<{tag: string, id: string, type: string, className: string, text: string, placeholder: string, selector: string}> = [];
-          const structuralElements: Array<{tag: string, id: string, className: string, text: string, selector: string}> = [];
-
+          const allElements = Array.from(document.querySelectorAll('*'));
+          const filteredMap = new Map<Element, { 
+            tag: string; id: string; type: string; text: string; 
+            placeholder: string; selector: string; isInteractive: boolean; 
+          }>();
           let aiIdCounter = 1;
 
-          elements.forEach(el => {
-            const tagName = el.tagName.toLowerCase();
-            const id = el.id ? el.id : '';
-            const className = el.className ? String(el.className) : '';
-            const type = (el as any).type ? (el as any).type : '';
-            const placeholder = (el as any).placeholder ? (el as any).placeholder : '';
+          allElements.forEach(elItem => {
+            const tagName = elItem.tagName.toLowerCase();
+            const style = window.getComputedStyle(elItem);
+            const rect  = elItem.getBoundingClientRect();
 
-            const style = window.getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
-            const isVisible = style.display !== 'none' && 
-                              style.visibility !== 'hidden' && 
-                              style.opacity !== '0' &&
-                              rect.width > 0 && 
-                              rect.height > 0;
+            const isVisible = 
+              style.display     !== 'none'   && 
+              style.visibility  !== 'hidden' && 
+              style.opacity     !== '0'      && 
+              rect.width  > 0 && 
+              rect.height > 0;
+            if (!isVisible) return;
 
-            const textNodes = Array.from(el.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
-            const text = textNodes.map(node => node.textContent?.trim()).filter(Boolean).join(' ').substring(0, 50) || '';
+            const isInteractive = ['button','input','select','textarea','a'].includes(tagName);
+            const isStructural  = ['div','section','article','header','footer','nav','aside','main','form'].includes(tagName);
+            if (!isInteractive && !isStructural) return;
 
-            const selectorParts: string[] = [tagName];
-            if (id) selectorParts.push(`#${id}`);
-            if (className) {
-              const classes = className.split(' ').filter(c => c).map(c => `.${c}`).join('');
-              if (classes) selectorParts.push(classes);
-            }
-            const selector = selectorParts.join('');
+            const text = Array.from(elItem.childNodes) 
+              .filter(n => n.nodeType === Node.TEXT_NODE) 
+              .map(n => n.textContent?.trim()) 
+              .filter(Boolean) 
+              .join(' ') 
+              .substring(0, 60);
 
-            const eventListeners = ['onclick', 'onmouseover', 'onmouseout', 'onmousedown', 'onmouseup', 'onchange', 'onsubmit', 'onfocus', 'onblur', 'onkeydown', 'onkeyup', 'onkeypress'];
-            const hasEventListeners = eventListeners.some(event => (el as any)[event]);
+            const hasEvents = ['onclick','onchange','onsubmit','onfocus','onblur'] 
+              .some(ev => !!(elItem as any)[ev]);
 
-            if (['button', 'input', 'select', 'textarea', 'a'].includes(tagName)) {
-              if (isVisible) {
-                const uniqueAiId = `a${aiIdCounter++}`;
-                el.setAttribute('data-ai-id', uniqueAiId);
-                
-                interactiveElements.push({
-                  tag: tagName,
-                  id,
-                  type,
-                  className,
-                  text,
-                  placeholder,
-                  selector: `[data-ai-id="${uniqueAiId}"]`
-                });
-              }
-            } else if (['div', 'section', 'article', 'header', 'footer', 'nav', 'aside', 'main', 'form'].includes(tagName)) {
-              if (isVisible && (text || hasEventListeners)) {
-                const uniqueAiId = `a${aiIdCounter++}`;
-                el.setAttribute('data-ai-id', uniqueAiId);
-                
-                structuralElements.push({
-                  tag: tagName,
-                  id,
-                  className,
-                  text,
-                  selector: `[data-ai-id="${uniqueAiId}"]`
-                });
-              }
-            }
+            if (isStructural && !text && !hasEvents) return;
+
+            const uniqueAiId = `a${aiIdCounter++}`;
+            elItem.setAttribute('data-ai-id', uniqueAiId);
+
+            filteredMap.set(elItem, { 
+              tag:         tagName, 
+              id:          elItem.id || '', 
+              type:        (elItem as any).type        || '', 
+              text:        text                        || '', 
+              placeholder: (elItem as any).placeholder || '', 
+              selector:    `[data-ai-id="${uniqueAiId}"]`, 
+              isInteractive, 
+            });
           });
 
-          if (interactiveElements.length > 0) {
-            sections.push('### 交互元素\n');
-            interactiveElements.forEach(el => {
-              const elementLabel = el.tag === 'button' ? '按钮' : 
-                                   el.tag === 'input' ? '输入框' :
-                                   el.tag === 'select' ? '下拉选择' :
-                                   el.tag === 'textarea' ? '文本区域' : '链接';
-              sections.push(`**${elementLabel}**\n`);
-              sections.push(`- AI唯一选择器 (点击请用此): \`${el.selector}\`\n`);
-              sections.push(`- 标签: \`<${el.tag}>\`\n`);
-              if (el.id) sections.push(`- ID: \`${el.id}\`\n`);
-              if (el.type) sections.push(`- 类型: \`${el.type}\`\n`);
-              if (el.className) sections.push(`- 类名: \`${el.className}\`\n`);
-              if (el.text) sections.push(`- 文本: ${el.text}\n`);
-              if (el.placeholder) sections.push(`- 占位符: ${el.placeholder}\n`);
-              sections.push('\n');
-            });
+          function hasFiltered(node: Element): boolean {
+            if (filteredMap.has(node)) return true;
+            for (const child of Array.from(node.children)) {
+              if (hasFiltered(child)) return true;
+            }
+            return false;
           }
 
-          if (structuralElements.length > 0) {
-            sections.push('### 结构元素\n');
-            structuralElements.forEach(el => {
-              sections.push(`**${el.tag}**\n`);
-              sections.push(`- 唯一id: \`${el.selector}\`\n`);
-              if (el.id) sections.push(`- ID: \`${el.id}\`\n`);
-              if (el.className) sections.push(`- 类名: \`${el.className}\`\n`);
-              if (el.text) sections.push(`- 文本: ${el.text}\n`);
-              sections.push('\n');
-            });
+          const lines: string[] = [];
+
+          function render(node: Element, depth: number, showSelf: boolean): void {
+            const indent      = '  '.repeat(depth);
+            const isFiltered  = filteredMap.has(node);
+            const childDepth  = showSelf ? depth + 1 : depth;
+
+            const relevantChildren = Array.from(node.children).filter(hasFiltered);
+
+            if (showSelf) {
+              if (isFiltered) {
+                const info  = filteredMap.get(node)!;
+                const LABELS: Record<string, string> = { 
+                  button: '按钮', input: '输入框', select: '下拉', 
+                  textarea: '文本区', a: '链接', 
+                };
+                const label = info.isInteractive 
+                  ? (LABELS[info.tag] ? `${LABELS[info.tag]} [${info.tag}]` : info.tag) 
+                  : info.tag;
+
+                lines.push(`${indent}**${label}**`);
+                lines.push(`${indent}- 选择器: \`${info.selector}\``);
+                if (info.id)          lines.push(`${indent}- ID: \`${info.id}\``);
+                if (info.type)        lines.push(`${indent}- 类型: \`${info.type}\``);
+                if (info.text)        lines.push(`${indent}- 文本: ${info.text}`);
+                if (info.placeholder) lines.push(`${indent}- 占位符: ${info.placeholder}`);
+                lines.push('');
+              } else {
+                const tag    = node.tagName.toLowerCase();
+                const idPart = node.id ? `#${node.id}` : '';
+                lines.push(`${indent}${tag}${idPart}`);
+              }
+            }
+
+            for (const child of relevantChildren) {
+              render(child, childDepth, true);
+            }
           }
 
-          sections.push('### 完整HTML\n');
-          sections.push('```html\n');
-          sections.push(html);
-          sections.push('\n```\n');
+          for (const child of Array.from(document.body.children)) {
+            if (hasFiltered(child)) render(child, 0, true);
+          }
 
-          const fullMarkdown = sections.join('');
-          const htmlSectionStart = fullMarkdown.indexOf('### 完整HTML');
-          const shortMarkdown = htmlSectionStart > 0 ? fullMarkdown.substring(0, htmlSectionStart).trim() : fullMarkdown;
+          const structureMarkdown = lines.join('\n');
+          const fullMarkdown = 
+            `## 页面结构\n\n${structureMarkdown}\n\n` + 
+            `### 完整HTML\n\`\`\`html\n${html}\n\`\`\`\n`;
 
-          return {
-            fullMarkdown,
-            shortMarkdown
-          };
+          return { fullMarkdown, shortMarkdown: structureMarkdown };
         });
 
         const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
