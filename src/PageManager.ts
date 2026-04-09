@@ -1541,7 +1541,7 @@ export class PageManager {
               type:        (elItem as any).type        || '', 
               text:        text                        || '', 
               placeholder: (elItem as any).placeholder || '', 
-              selector:    `[data-ai-id="${uniqueAiId}"]`, 
+              selector:    `[id="${uniqueAiId}"]`, 
               isInteractive, 
               svg, 
             });
@@ -1558,7 +1558,7 @@ export class PageManager {
           const lines: string[] = [];
 
           function render(node: Element, depth: number, showSelf: boolean): void {
-            const indent      = '  '.repeat(depth);
+            const indent      = ' '.repeat(depth);
             const isFiltered  = filteredMap.has(node);
             const childDepth  = showSelf ? depth + 1 : depth;
 
@@ -1586,6 +1586,12 @@ export class PageManager {
               } else {
                 const tag    = node.tagName.toLowerCase();
                 const idPart = node.id ? `#${node.id}` : '';
+                
+                if (relevantChildren.length === 1 && !isFiltered && tag === 'div') {
+                  render(relevantChildren[0], depth, false);
+                  return;
+                }
+                
                 lines.push(`${indent}${tag}${idPart}`);
               }
             }
