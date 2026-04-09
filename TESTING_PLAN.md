@@ -636,31 +636,61 @@ Get-Process msedge | Select-Object Id, ProcessName, Path | Format-Table
 
 ---
 
-#### 测试用例 2.1.5: 相同URL警告功能测试 (重要)
-**测试目标：** 验证当打开多个相同URL的页面时，系统会触发警告信息。
+#### 测试用例 2.1.5: 相同URL警告与错误功能测试 (重要，已更新)
+**测试目标：** 验证当打开多个相同URL的页面时，系统会触发警告信息和错误。
 
 **步骤：**
 1. 调用 `open_page` → `https://example.com` （第一次，记录返回结果）
 2. 调用 `open_page` → `https://example.com` （第二次，记录返回结果）
 3. 调用 `open_page` → `https://example.com` （第三次，记录返回结果）
+4. 调用 `open_page` → `https://example.com` （第四次，记录返回结果）
 
 **预期结果：**
-- 第一次调用：返回结果中 `info` 字段为 `undefined` 或不存在
-- 第二次调用：返回结果中 `info` 字段包含警告信息，提示已有2个相同URL的页面
-- 第三次调用：返回结果中 `info` 字段包含警告信息，提示已有3个相同URL的页面
+- 第一次调用：返回结果中 `info` 字段为 `undefined` 或不存在，`error` 字段为空
+- 第二次调用：返回结果中 `info` 字段包含警告信息，提示已有2个相同URL的页面，`error` 字段为空
+- 第三次调用：返回结果中 `error` 字段包含错误信息："Duplicate URL detected: You have opened >= 3 pages with the same URL. Please use refresh_page instead or close redundant pages."，`errorCode` 字段为 `'DUPLICATE_URL'`
+- 第四次调用：同样返回错误信息和 `errorCode: 'DUPLICATE_URL'`
 
 **验证点：**
-- ✓ 第一次打开相同URL时不显示警告
+- ✓ 第一次打开相同URL时不显示警告或错误
 - ✓ 第二次打开相同URL时触发警告：`You have created 2 identical pages with this URL...`
-- ✓ 第三次打开相同URL时更新警告：`You have created 3 identical pages with this URL...`
-- ✓ 警告信息中包含建议使用 `refresh_page` 工具的提示
-- ✓ 警告信息不影响页面正常打开
+- ✓ 第三次打开相同URL时触发错误，包含完整的错误信息
+- ✓ `errorCode` 字段正确设置为 `'DUPLICATE_URL'`
+- ✓ 错误信息中包含建议使用 `refresh_page` 工具的提示
+- ✓ 错误信息和警告信息不影响页面正常打开
+- ✓ URL归一化处理正确（例如：http://example.com 和 https://example.com 被视为相同）
 
-**补充说明：** 此功能在 [PageManager.ts#L501](file:///c:/Users/LiuXinYu/mcp-servers/browser-debugger/src/PageManager.ts#L501) 实现，用于提醒用户避免重复打开相同URL的页面，建议使用刷新功能替代。
+**补充说明：** 此功能在 [PageManager.ts#L673](file:///c:/Users/LiuXinYu/mcp-servers/browser-debugger/src/PageManager.ts#L673) 实现，用于提醒用户避免重复打开相同URL的页面，建议使用刷新功能替代。当相同URL数量>=3时，返回错误信息而非警告。
 
 ---
 
-#### 测试用例 2.1.6: Edge持久化模式与插件自动清理（VPN扩展·沉浸式翻译）
+#### 测试用例 2.1.6: 页面数量中文警告功能（新增）
+**测试目标：** 验证当打开页面数量达到或超过5个时，系统会显示中文警告信息。
+
+**步骤：**
+1. 调用 `open_page` → `https://example1.com` （第一次，记录返回结果）
+2. 调用 `open_page` → `https://example2.com` （第二次，记录返回结果）
+3. 调用 `open_page` → `https://example3.com` （第三次，记录返回结果）
+4. 调用 `open_page` → `https://example4.com` （第四次，记录返回结果）
+5. 调用 `open_page` → `https://example5.com` （第五次，记录返回结果）
+
+**预期结果：**
+- 前4次调用：返回结果中 `info` 字段为 `undefined` 或不存在
+- 第五次调用：返回结果中 `info` 字段包含中文警告："除非你必要的需要所有的页面，否则请关闭不必要的页面"
+- 第六次及以后调用：继续显示相同的中文警告
+
+**验证点：**
+- ✓ 前4个页面打开时不显示警告
+- ✓ 第5个页面打开时触发中文警告
+- ✓ 中文警告文本准确："除非你必要的需要所有的页面，否则请关闭不必要的页面"
+- ✓ 警告信息不影响页面正常打开
+- ✓ 关闭页面后再次打开，计数正确更新
+
+**补充说明：** 此功能在 [PageManager.ts#L714](file:///c:/Users/LiuXinYu/mcp-servers/browser-debugger/src/PageManager.ts#L714) 实现，用于提醒用户页面数量过多可能影响性能，建议关闭不必要的页面。
+
+---
+
+#### 测试用例 2.1.7: Edge持久化模式与插件自动清理（VPN扩展·沉浸式翻译）
 **测试目标：** 验证 Edge 浏览器的持久化模式、插件自动清理功能，以及与外部网站的交互（immersivetranslate.com）。
 
 **测试步骤：**
@@ -2150,6 +2180,254 @@ Get-Process msedge | Select-Object Id, ProcessName, Path | Format-Table
 
 ---
 
+#### 测试用例 3.2.9: 特殊对象类型处理 - Map（新增）
+**测试目标：** 验证console_execute能正确处理Map对象，返回结构化数据。
+
+**调用：**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "new Map([['key1', 'value1'], ['key2', 'value2'], ['key3', 'value3']])"
+}
+```
+
+**预期结果：**
+- `success: true`
+- `result` 包含结构化Map数据：
+  ```json
+  {
+    "__type": "Map",
+    "size": 3,
+    "entries": [
+      ["key1", "value1"],
+      ["key2", "value2"],
+      ["key3", "value3"]
+    ]
+  }
+  ```
+- 如果Map有超过10个条目，只返回前10个
+
+**验证点：**
+- ✓ Map对象被正确识别
+- ✓ 返回数据包含__type、size、entries字段
+- ✓ entries是键值对数组
+- ✓ 大Map（>10条目）只返回前10个条目
+
+---
+
+#### 测试用例 3.2.10: 特殊对象类型处理 - Set（新增）
+**测试目标：** 验证console_execute能正确处理Set对象，返回结构化数据。
+
+**调用：**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "new Set([1, 2, 3, 4, 5])"
+}
+```
+
+**预期结果：**
+- `success: true`
+- `result` 包含结构化Set数据：
+  ```json
+  {
+    "__type": "Set",
+    "size": 5,
+    "entries": [1, 2, 3, 4, 5]
+  }
+  ```
+- 如果Set有超过10个元素，只返回前10个
+
+**验证点：**
+- ✓ Set对象被正确识别
+- ✓ 返回数据包含__type、size、entries字段
+- ✓ entries是值数组
+- ✓ 大Set（>10元素）只返回前10个元素
+
+---
+
+#### 测试用例 3.2.11: 特殊对象类型处理 - Date（新增）
+**测试目标：** 验证console_execute能正确处理Date对象，返回结构化数据。
+
+**调用：**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "new Date('2026-04-06T12:00:00Z')"
+}
+```
+
+**预期结果：**
+- `success: true`
+- `result` 包含结构化Date数据：
+  ```json
+  {
+    "__type": "Date",
+    "isoString": "2026-04-06T12:00:00.000Z",
+    "timestamp": 1743902400000
+  }
+  ```
+
+**验证点：**
+- ✓ Date对象被正确识别
+- ✓ 返回数据包含__type、isoString、timestamp字段
+- ✓ isoString是ISO 8601格式
+- ✓ timestamp是Unix时间戳（毫秒）
+
+---
+
+#### 测试用例 3.2.12: 特殊对象类型处理 - RegExp（新增）
+**测试目标：** 验证console_execute能正确处理RegExp对象，返回结构化数据。
+
+**调用：**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "/test.*pattern/gi"
+}
+```
+
+**预期结果：**
+- `success: true`
+- `result` 包含结构化RegExp数据：
+  ```json
+  {
+    "__type": "RegExp",
+    "source": "test.*pattern",
+    "flags": "gi"
+  }
+  ```
+
+**验证点：**
+- ✓ RegExp对象被正确识别
+- ✓ 返回数据包含__type、source、flags字段
+- ✓ source包含正则表达式模式
+- ✓ flags包含修饰符（g、i、m等）
+
+---
+
+#### 测试用例 3.2.13: 特殊对象类型处理 - Error（新增）
+**测试目标：** 验证console_execute能正确处理Error对象，返回结构化数据。
+
+**调用：**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "new Error('Test error message')"
+}
+```
+
+**预期结果：**
+- `success: true`
+- `result` 包含结构化Error数据：
+  ```json
+  {
+    "__type": "Error",
+    "name": "Error",
+    "message": "Test error message"
+  }
+  ```
+
+**验证点：**
+- ✓ Error对象被正确识别
+- ✓ 返回数据包含__type、name、message字段
+- ✓ name包含错误类型（Error、TypeError等）
+- ✓ message包含错误消息
+
+---
+
+#### 测试用例 3.2.14: 大型对象性能限制测试（新增）
+**测试目标：** 验证console_execute正确应用性能限制常量（MAX_OBJECT_PROPERTIES、MAX_ARRAY_LENGTH、MAX_STRING_LENGTH）。
+
+**步骤1：大型对象属性限制测试**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "const obj = {}; for (let i = 0; i < 2000; i++) obj[`prop${i}`] = i; obj"
+}
+```
+
+**预期结果：**
+- `success: true`
+- `result` 只包含前1000个属性
+- 不会抛出错误或崩溃
+
+**验证点：**
+- ✓ MAX_OBJECT_PROPERTIES=1000限制生效
+- ✓ 大型对象被正确截断
+- ✓ 性能稳定
+
+**步骤2：大型数组长度限制测试**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "Array.from({length: 200}, (_, i) => i)"
+}
+```
+
+**预期结果：**
+- `success: true`
+- `result` 只包含前100个元素
+- 不会抛出错误或崩溃
+
+**验证点：**
+- ✓ MAX_ARRAY_LENGTH=100限制生效
+- ✓ 大型数组被正确截断
+- ✓ 性能稳定
+
+**步骤3：长字符串长度限制测试**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "'a'.repeat(20000)"
+}
+```
+
+**预期结果：**
+- `success: true`
+- `result` 只包含前10000个字符
+- 不会抛出错误或崩溃
+
+**验证点：**
+- ✓ MAX_STRING_LENGTH=10000限制生效
+- ✓ 长字符串被正确截断
+- ✓ 性能稳定
+
+**补充说明：** 性能限制常量定义在 [PageManager.ts#L58](file:///c:/Users/LiuXinYu/mcp-servers/browser-debugger/src/PageManager.ts#L58)，用于防止大型对象序列化导致的性能问题和内存溢出。
+
+---
+
+#### 测试用例 3.2.15: ensureExecutionContextReady集成测试（新增）
+**测试目标：** 验证console_execute在执行前正确调用ensureExecutionContextReady确保执行上下文已就绪。
+
+**步骤：**
+1. 打开一个新页面
+2. 在页面加载完成前立即执行console_execute代码
+3. 观察执行结果
+
+**调用：**
+```json
+{
+  "pageId": "<pageId>",
+  "code": "document.readyState"
+}
+```
+
+**预期结果：**
+- `success: true`
+- 如果执行上下文未就绪，返回明确的错误信息："Execution context not ready: ..."
+- 不会导致页面崩溃或无响应
+
+**验证点：**
+- ✓ ensureExecutionContextReady被正确调用
+- ✓ 执行上下文未就绪时返回明确错误
+- ✓ 错误信息包含具体原因
+- ✓ 不会导致系统不稳定
+
+**补充说明：** 此功能在 [PageManager.ts#L1120](file:///c:/Users/LiuXinYu/mcp-servers/browser-debugger/src/PageManager.ts#L1120) 实现，用于确保在执行JavaScript代码前页面执行上下文已准备好。
+
+---
+
 ### 3.3 get_console_history 测试
 
 #### 测试用例 3.3.1: 获取完整历史
@@ -2479,6 +2757,63 @@ Get-Process msedge | Select-Object Id, ProcessName, Path | Format-Table
 **验证点：**
 - ✓ 指定样式正确返回
 - ✓ 未指定样式不返回
+
+---
+
+#### 测试用例 4.1.4: Markdown格式输出（新增功能）
+**测试目标：** 验证inspectElement工具支持markdown格式输出，并自动注入data-ai-id属性。
+
+**前置步骤：** 打开一个包含复杂HTML结构的页面
+
+**调用：**
+```json
+{
+  "pageId": "<pageId>",
+  "selector": "body",
+  "format": "markdown"
+}
+```
+
+**预期结果：**
+- `success: true`
+- 返回格式化的markdown内容
+- 所有可见元素都被包含在markdown中
+- 不可见元素（width=0、height=0、display:none、visibility:hidden、opacity:0）被过滤
+- 每个元素包含元素类型、属性、文本内容和边框信息
+- 自动生成并注入唯一的`data-ai-id`属性
+- 生成`page_structure.md`文件保存完整的页面结构
+
+**验证点：**
+- ✓ markdown格式正确生成
+- ✓ 不可见元素被过滤（不应在结果中出现）
+- ✓ 交互元素（button、input、select、textarea、a）只要可见就保留
+- ✓ 结构元素（div、section等）必须包含文本或事件监听器才保留
+- ✓ data-ai-id属性正确注入且唯一
+- ✓ page_structure.md文件成功创建
+- ✓ 元素可见性检查使用getBoundingClientRect()返回width>0 && height>0
+- ✓ CSS属性检查：display !== 'none' && visibility !== 'hidden' && opacity !== '0'
+
+**补充说明：** 此功能使用turndown库进行HTML到Markdown转换，支持结构化输出，便于AI理解和处理页面结构。
+
+---
+
+#### 测试用例 4.1.5: Markdown格式与JSON格式对比
+**测试目标：** 验证format参数支持'json'和'markdown'两种格式，默认为'json'。
+
+**步骤：**
+1. 调用 `inspect_element` → `selector: "body", format: "json"`（或省略format参数）
+2. 调用 `inspect_element` → `selector: "body", format: "markdown"`
+
+**预期结果：**
+- 第一次调用：返回JSON格式数据，包含htmlPreview、boundingBox、computedStyles等字段
+- 第二次调用：返回markdown格式文本，不包含上述JSON字段
+- 两次调用的元素可见性过滤规则一致
+
+**验证点：**
+- ✓ format参数正确控制输出格式
+- ✓ 默认格式为'json'
+- ✓ 两种格式的可见性过滤规则相同
+- ✓ 不可见元素在两种格式下都被过滤
 
 ---
 
@@ -4042,6 +4377,119 @@ Get-Process msedge | Select-Object Id, ProcessName, Path | Format-Table
 - ✓ 正常页面不受自动关闭逻辑影响
 - ✓ 只关闭特定 onboarding/welcome 页面
 - ✓ 页面列表正确
+
+---
+
+#### 测试用例 5.2.9: Edge浏览器初始化失败 - Edge未安装（新增）
+**测试目标：** 验证当Edge浏览器未安装时，系统提供详细的错误信息和解决方案。
+
+**前置条件：**
+- 系统未安装Microsoft Edge浏览器
+- 或修改browser-config.json中的edgePath指向不存在的路径
+
+**调用：**
+```json
+{
+  "url": "https://example.com",
+  "browser": "edge"
+}
+```
+
+**预期结果：**
+- `open_page` 返回失败
+- 错误信息包含："Failed to initialize Edge browser"
+- 控制台输出详细的错误诊断信息，包括：
+  - "Edge Browser Initialization Failed" 分隔线
+  - "Possible causes:" 部分，列出可能原因
+  - "Solutions:" 部分，提供解决方案
+- 具体错误信息提及：Edge未安装或edgePath配置错误
+
+**验证点：**
+- ✓ 错误信息清晰明确
+- ✓ 提供详细的诊断信息
+- ✓ 列出可能原因：
+  * Microsoft Edge未安装
+  * Edge executable path配置错误
+  * Edge依赖项缺失
+- ✓ 提供解决方案：
+  * 安装Microsoft Edge
+  * 检查edgePath配置
+  * 移除edgePath使用默认系统Edge
+
+**补充说明：** 此功能在 [PageManager.ts#L217](file:///c:/Users/LiuXinYu/mcp-servers/browser-debugger/src/PageManager.ts#L217) 实现，帮助用户快速诊断和解决Edge初始化问题。
+
+---
+
+#### 测试用例 5.2.10: Edge浏览器初始化失败 - UserData目录错误（新增）
+**测试目标：** 验证当Edge用户数据目录不可访问时，系统提供详细的错误信息和解决方案。
+
+**前置条件：**
+- browser-config.json中的userDataDir指向不存在的目录
+- 或目录权限不足
+- 或另一个Edge实例正在使用该profile
+
+**调用：**
+```json
+{
+  "url": "https://example.com",
+  "browser": "edge"
+}
+```
+
+**预期结果：**
+- `open_page` 返回失败
+- 错误信息包含："Failed to initialize Edge browser"
+- 控制台输出详细的错误诊断信息，包括：
+  - "Edge User Data Directory Error" 分隔线
+  - "Possible causes:" 部分
+  - "Solutions:" 部分
+- 具体错误信息提及userDataDir相关问题
+
+**验证点：**
+- ✓ 错误信息清晰明确
+- ✓ 提供详细的诊断信息
+- ✓ 列出可能原因：
+  * 用户数据目录不可访问
+  * 目录权限不足
+  * 另一个Edge实例正在使用该profile
+- ✓ 提供解决方案：
+  * 关闭所有运行的Edge浏览器实例
+  * 检查userDataDir路径是否正确
+  * 确保应用有写入权限
+  * 尝试使用不同的userDataDir路径
+
+**补充说明：** 此功能在 [PageManager.ts#L241](file:///c:/Users/LiuXinYu/mcp-servers/browser-debugger/src/PageManager.ts#L241) 实现，帮助用户快速诊断和解决userDataDir相关问题。
+
+---
+
+#### 测试用例 5.2.11: UserData目录自动创建（新增）
+**测试目标：** 验证当userDataDir不存在时，系统能够自动创建目录。
+
+**前置条件：**
+- browser-config.json中的userDataDir指向一个不存在的目录路径
+- 父目录存在且有写入权限
+
+**调用：**
+```json
+{
+  "url": "https://example.com",
+  "browser": "edge"
+}
+```
+
+**预期结果：**
+- Edge浏览器成功初始化
+- 页面成功打开
+- userDataDir目录被自动创建
+- 控制台输出："User data directory created successfully"
+
+**验证点：**
+- ✓ 不存在的userDataDir被自动创建
+- ✓ 目录创建成功
+- ✓ Edge浏览器正常启动
+- ✓ 不影响页面打开功能
+
+**补充说明：** 此功能在 [PageManager.ts#L210](file:///c:/Users/LiuXinYu/mcp-servers/browser-debugger/src/PageManager.ts#L210) 实现，提升用户体验，减少配置错误。
 
 ---
 

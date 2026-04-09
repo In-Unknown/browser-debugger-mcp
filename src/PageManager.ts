@@ -1486,6 +1486,8 @@ export class PageManager {
           const interactiveElements: Array<{tag: string, id: string, type: string, className: string, text: string, placeholder: string, selector: string}> = [];
           const structuralElements: Array<{tag: string, id: string, className: string, text: string, selector: string}> = [];
 
+          let aiIdCounter = 1;
+
           elements.forEach(el => {
             const tagName = el.tagName.toLowerCase();
             const id = el.id ? el.id : '';
@@ -1517,6 +1519,9 @@ export class PageManager {
 
             if (['button', 'input', 'select', 'textarea', 'a'].includes(tagName)) {
               if (isVisible) {
+                const uniqueAiId = `a${aiIdCounter++}`;
+                el.setAttribute('data-ai-id', uniqueAiId);
+                
                 interactiveElements.push({
                   tag: tagName,
                   id,
@@ -1524,17 +1529,20 @@ export class PageManager {
                   className,
                   text,
                   placeholder,
-                  selector
+                  selector: `[data-ai-id="${uniqueAiId}"]`
                 });
               }
             } else if (['div', 'section', 'article', 'header', 'footer', 'nav', 'aside', 'main', 'form'].includes(tagName)) {
               if (isVisible && (text || hasEventListeners)) {
+                const uniqueAiId = `a${aiIdCounter++}`;
+                el.setAttribute('data-ai-id', uniqueAiId);
+                
                 structuralElements.push({
                   tag: tagName,
                   id,
                   className,
                   text,
-                  selector
+                  selector: `[data-ai-id="${uniqueAiId}"]`
                 });
               }
             }
@@ -1548,13 +1556,13 @@ export class PageManager {
                                    el.tag === 'select' ? '下拉选择' :
                                    el.tag === 'textarea' ? '文本区域' : '链接';
               sections.push(`**${elementLabel}**\n`);
+              sections.push(`- AI唯一选择器 (点击请用此): \`${el.selector}\`\n`);
               sections.push(`- 标签: \`<${el.tag}>\`\n`);
               if (el.id) sections.push(`- ID: \`${el.id}\`\n`);
               if (el.type) sections.push(`- 类型: \`${el.type}\`\n`);
               if (el.className) sections.push(`- 类名: \`${el.className}\`\n`);
               if (el.text) sections.push(`- 文本: ${el.text}\n`);
               if (el.placeholder) sections.push(`- 占位符: ${el.placeholder}\n`);
-              sections.push(`- 选择器: \`${el.selector}\`\n`);
               sections.push('\n');
             });
           }
@@ -1563,10 +1571,10 @@ export class PageManager {
             sections.push('### 结构元素\n');
             structuralElements.forEach(el => {
               sections.push(`**${el.tag}**\n`);
+              sections.push(`- 唯一id: \`${el.selector}\`\n`);
               if (el.id) sections.push(`- ID: \`${el.id}\`\n`);
               if (el.className) sections.push(`- 类名: \`${el.className}\`\n`);
               if (el.text) sections.push(`- 文本: ${el.text}\n`);
-              sections.push(`- 选择器: \`${el.selector}\`\n`);
               sections.push('\n');
             });
           }

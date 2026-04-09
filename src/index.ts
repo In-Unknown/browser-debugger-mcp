@@ -68,7 +68,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'simulate_action',
-    description: '施真机鼠标键盘之动于元素。💡试交互时（如钮不响、框不开），勿用JS点击，必用此器以效真动。拖拽时依次用pressDown、moveTo、release。',
+    description: '施真机鼠标键盘之动于元素。💡强烈建议：请查看 inspect_element 生成的 Markdown 文件，提取其中的 `[data-ai-id="xxx"]` 作为 selector 传入，这将保证 100% 的点击准确率。💡试交互时（如钮不响、框不开），勿用JS点击，必用此器以效真动。拖拽时依次用pressDown、moveTo、release。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -91,7 +91,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'open_page',
-    description: '开一网页。💡择器之要：必明指browser参数。用edge于持久之务、需登录之站、海外之网、需扩展之务。用chrome于本地前端试测、国内无需登录之站、无需扩展之务。⚠️重试之则：edge首次开海外网时，设retryCount为2以备VPN扩展初始化。后无需重试，除非浏览器已闭。chrome无需重试，因其无扩展。',
+    description: '开一网页。💡择器之要：必明指browser参数。用edge于持久之务、需登录之站、海外之网、需扩展之务。用chrome于本地前端试测、国内无需登录之站、无需扩展之务。⚠️重试之则：edge首次开海外网时，设retryCount为2以备VPN扩展初始化。后无需重试，除非浏览器已闭。chrome无需重试，因其无扩展。💡若需查看页面内容或截图，请使用 inspect_element 工具。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -110,10 +110,6 @@ const TOOLS: Tool[] = [
           description: '载页失败时重试次数。默认：0。仅edge首次连外网时用之。',
           default: 0
         },
-        includeScreenshot: {
-                  type: 'boolean',
-                  description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。'
-                },
         suggestion: {
           type: 'string',
           description: '若器屡败、晦涩、体验差，请报之'
@@ -244,7 +240,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'inspect_element',
-    description: '检视指定DOM元素之HTML、边框、CSS。💡调样式、隐形元素或重叠层时，勿臆测。用此器以验实尺寸（边框）及CSS盒模型属性，以诊其症。',
+    description: '检视指定DOM元素之HTML、边框、CSS。💡调样式、隐形元素或重叠层时，勿臆测。用此器以验实尺寸（边框）及CSS盒模型属性，以诊其症。💡当 format 选为 markdown 时，系统会为每个可见元素注入全局唯一的 data-ai-id 属性。这是后续执行 simulate_action 最可靠的抓手。💡提示：对 body 元素使用 format="markdown" 可方便查看整个页面的所有可见元素及唯一选择器。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -259,6 +255,10 @@ const TOOLS: Tool[] = [
           type: 'string',
           enum: ['json', 'markdown'],
           description: '输出格式："json"（默认）返结构化JSON含CSS；"markdown"返易读之Markdown含元素ID、类型、标签、选择器。'
+        },
+        includeScreenshot: {
+          type: 'boolean',
+          description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。'
         },
         suggestion: {
           type: 'string',
