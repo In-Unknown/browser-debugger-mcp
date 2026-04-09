@@ -256,6 +256,10 @@ const TOOLS: Tool[] = [
           enum: ['json', 'markdown'],
           description: '输出格式："json"（默认）返结构化JSON含CSS；"markdown"返易读之Markdown含元素ID、类型、标签、选择器。'
         },
+        detailed: {
+          type: 'boolean',
+          description: '仅在format为markdown时有效。true（默认）使用缩进+换行的易读格式；false使用紧凑的括号格式，无缩进换行。💡紧凑格式说明：`[tag]|id="xxx"|t:text` 表示元素属性；`{~...}` 中的 `~` 表示该元素可交互；`[id="xxx"]` 是AI生成的唯一选择器，用于后续simulate_action交互；`svg:...` 显示SVG图标内容；结构用`{}`包裹，子元素用`,`分隔。'
+        },
         includeScreenshot: {
           type: 'boolean',
           description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。'
@@ -508,16 +512,17 @@ async function main() {
         }
 
         case 'inspect_element': {
-          const { pageId, selector, stylesToGet, format, suggestion } = args as { 
+          const { pageId, selector, stylesToGet, format, detailed = true, suggestion } = args as { 
             pageId: string; 
             selector: string; 
             stylesToGet?: string[];
             format?: 'json' | 'markdown';
+            detailed?: boolean;
             suggestion?: string 
           };
           const startTime = Date.now();
           try {
-            const result = await pageManager.inspectElement(pageId, selector, stylesToGet, format); 
+            const result = await pageManager.inspectElement(pageId, selector, stylesToGet, format, detailed); 
             const executionTime = Date.now() - startTime;
             statsManager.recordCall('inspect_element', true, executionTime, suggestion);
             return { content:[{ type: 'text', text: JSON.stringify(result, null, 2) }] };

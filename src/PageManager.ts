@@ -1407,7 +1407,7 @@ export class PageManager {
     };
   }
 
-  async inspectElement(pageId: string, selector: string, stylesToGet?: string[], format: 'json' | 'markdown' = 'json'): Promise<any> {
+  async inspectElement(pageId: string, selector: string, stylesToGet?: string[], format: 'json' | 'markdown' = 'json', detailed: boolean = true): Promise<any> {
     const pageInfo = this.pages.get(pageId);
     if (!pageInfo) return { success: false, error: `Page with id ${pageId} not found` };
 
@@ -1475,7 +1475,7 @@ export class PageManager {
 
       // If markdown format is requested, convert the HTML to structured markdown
       if (format === 'markdown') {
-        const markdown = await element.evaluate(el => {
+        const markdown = await element.evaluate((el, detailed) => {
           const html = el.outerHTML;
 
           const allElements = Array.from(document.querySelectorAll('*'));
@@ -1555,6 +1555,41 @@ export class PageManager {
             return false;
           }
 
+          function renderCompact(node: Element): string {
+            const isFiltered = filteredMap.has(node);
+            const relevantChildren = Array.from(node.children).filter(hasFiltered);
+            const info = isFiltered ? filteredMap.get(node)! : null;
+
+            let result = '';
+
+            if (isFiltered && info) {
+              const parts: string[] = [`[${info.tag}]`, info.selector];
+              if (info.svg) parts.push(`[svg]`);
+              if (info.id) parts.push(`htmlId="${info.id}"`);
+              if (info.type) parts.push(`type="${info.type}"`);
+              if (info.text) parts.push(`t:${info.text}`);
+              if (info.placeholder) parts.push(`ph:${info.placeholder}`);
+              result = parts.join('|');
+            } else {
+              const tag = node.tagName.toLowerCase();
+              const idPart = node.id ? `#${node.id}` : '';
+
+              if (relevantChildren.length === 1 && !isFiltered && tag === 'div') {
+                return renderCompact(relevantChildren[0]);
+              }
+
+              result = `[${tag}${idPart}]`;
+            }
+
+            if (relevantChildren.length > 0) {
+              const childrenParts = relevantChildren.map(child => renderCompact(child));
+              const interactiveMark = (info && info.isInteractive) ? '~' : '';
+              result += `{${interactiveMark}${childrenParts.join(',')}}`;
+            }
+
+            return result;
+          }
+
           const lines: string[] = [];
 
           function render(node: Element, depth: number, showSelf: boolean): void {
@@ -1601,17 +1636,30 @@ export class PageManager {
             }
           }
 
-          for (const child of Array.from(document.body.children)) {
-            if (hasFiltered(child)) render(child, 0, true);
+          let structureMarkdown: string;
+          
+          if (!detailed) {
+            const compactParts: string[] = [];
+            for (const child of Array.from(document.body.children)) {
+              if (hasFiltered(child)) {
+                const result = renderCompact(child);
+                if (result) compactParts.push(result);
+              }
+            }
+            structureMarkdown = compactParts.join('\n');
+          } else {
+            for (const child of Array.from(document.body.children)) {
+              if (hasFiltered(child)) render(child, 0, true);
+            }
+            structureMarkdown = lines.join('\n');
           }
 
-          const structureMarkdown = lines.join('\n');
           const fullMarkdown = 
             `## 页面结构\n\n${structureMarkdown}\n\n` + 
             `### 完整HTML\n\`\`\`html\n${html}\n\`\`\`\n`;
 
           return { fullMarkdown, shortMarkdown: structureMarkdown };
-        });
+        }, detailed);
 
         const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
         const markdownFilePath = path.join(rootDir, 'page_structure.md');
