@@ -676,7 +676,7 @@ export class PageManager {
 
     let finalError = error;
     let errorCode: string | undefined;
-    if (existingSameUrlCount >= 3) {
+    if (existingSameUrlCount >= 2) {
       finalError = `Duplicate URL detected: You have opened >= ${existingSameUrlCount + 1} pages with the same URL. Please use refresh_page instead or close redundant pages.`;
       errorCode = 'DUPLICATE_URL';
     }
@@ -1482,7 +1482,7 @@ export class PageManager {
           const filteredMap = new Map<Element, { 
             tag: string; id: string; type: string; text: string; 
             placeholder: string; selector: string; isInteractive: boolean; 
-            svg: string; 
+            svg: string; path: string; iconName: string;
           }>();
           let aiIdCounter = 1;
 
@@ -1530,7 +1530,12 @@ export class PageManager {
             if (isStructural && !text && !hasEvents) return;
 
             const svgElement = elItem.querySelector('svg');
-            const svg = svgElement ? svgElement.outerHTML.substring(0, 500) : '';
+            const svg = svgElement ? svgElement.outerHTML : '';
+            const pathElement = svgElement?.querySelector('path');
+            const path = pathElement ? pathElement.outerHTML : '';
+
+            const iconName = elItem.querySelector('svg')?.getAttribute('data-icon') || 
+                             elItem.getAttribute('data-icon') || '';
 
             const uniqueAiId = `a${aiIdCounter++}`;
             elItem.setAttribute('data-ai-id', uniqueAiId);
@@ -1543,7 +1548,9 @@ export class PageManager {
               placeholder: (elItem as any).placeholder || '', 
               selector:    `[id="${uniqueAiId}"]`, 
               isInteractive, 
-              svg, 
+              svg,
+              path,
+              iconName,
             });
           });
 
@@ -1563,7 +1570,14 @@ export class PageManager {
             let result = '';
 
             if (isFiltered && info) {
-              const parts: string[] = [`[${info.tag}]`, info.selector];
+              const parts: string[] = [];
+              if (info.isInteractive) {
+                parts.push(`**交互组件[${info.tag}]**`);
+              } else {
+                parts.push(`[${info.tag}]`);
+              }
+              parts.push(info.selector);
+              if (info.iconName) parts.push(`图标:${info.iconName}`);
               if (info.svg) parts.push(`[svg]`);
               if (info.id) parts.push(`htmlId="${info.id}"`);
               if (info.type) parts.push(`type="${info.type}"`);
@@ -1606,17 +1620,22 @@ export class PageManager {
                   button: '按钮', input: '输入框', select: '下拉', 
                   textarea: '文本区', a: '链接', 
                 };
-                const label = info.isInteractive 
+                let label = info.isInteractive 
                   ? (LABELS[info.tag] ? `${LABELS[info.tag]} [${info.tag}]` : info.tag) 
                   : info.tag;
 
-                lines.push(`${indent}**${label}**`);
-                lines.push(`${indent}- 选择器: \`${info.selector}\``);
+                if (info.isInteractive) {
+                  label = `**!!!${label} (可以交互/点击/选择)**`;
+                }
+
+                lines.push(`${indent}${label}`);
+                lines.push(`${indent}- AI选择器: \`${info.selector}\``);
+                if (info.iconName)    lines.push(`${indent}- 图标名称: \`${info.iconName}\``);
                 if (info.id)          lines.push(`${indent}- ID: \`${info.id}\``);
                 if (info.type)        lines.push(`${indent}- 类型: \`${info.type}\``);
                 if (info.text)        lines.push(`${indent}- 文本: ${info.text}`);
                 if (info.placeholder) lines.push(`${indent}- 占位符: ${info.placeholder}`);
-                if (info.svg)         lines.push(`${indent}- 图标(SVG): \n${indent}  \`\`\`xml\n${indent}  ${info.svg}\n${indent}  \`\`\``);
+                if (info.path)        lines.push(`${indent}- 图标(SVG): \n${indent}  \`\`\`xml\n${indent}  ${info.path}\n${indent}  \`\`\``);
                 lines.push('');
               } else {
                 const tag    = node.tagName.toLowerCase();

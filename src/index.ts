@@ -258,7 +258,7 @@ const TOOLS: Tool[] = [
         },
         detailed: {
           type: 'boolean',
-          description: '仅在format为markdown时有效。true（默认）使用缩进+换行的易读格式；false使用紧凑的括号格式，无缩进换行。💡紧凑格式说明：`[tag]|id="xxx"|t:text` 表示元素属性；`{~...}` 中的 `~` 表示该元素可交互；`[id="xxx"]` 是AI生成的唯一选择器，用于后续simulate_action交互；`svg:...` 显示SVG图标内容；结构用`{}`包裹，子元素用`,`分隔。'
+          description: '仅在format为markdown时有效。true（默认）使用缩进+换行的易读格式；false使用紧凑的括号格式，无缩进换行。💡紧凑格式语法：\n- 元素定义：`[tag]|[data-ai-id="a1"]|htmlId="originalId"|type="button"|t:文本|ph:占位符`，用|分隔属性\n- 属性说明：[tag]标签名，**交互组件[tag]**表示可交互元素（加粗强调），[data-ai-id="a1"]AI唯一选择器（后续simulate_action用），htmlId原始HTML ID，type元素类型，t:文本内容，ph:输入框占位符，图标:name表示data-icon属性值\n- 层级结构：`{子元素1,子元素2}`用{}包裹子元素，用,分隔\n- 交互标记：`{~子元素}`中的~表示**父元素**可交互\n- SVG图标：包含完整SVG内容（不截断），可识别图标类型'
         },
         includeScreenshot: {
           type: 'boolean',
