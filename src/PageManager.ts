@@ -1482,7 +1482,7 @@ export class PageManager {
           const filteredMap = new Map<Element, { 
             tag: string; id: string; type: string; text: string; 
             placeholder: string; selector: string; isInteractive: boolean; 
-            svg: string; path: string; iconName: string;
+            svg: string; path: string; iconName: string; extractedType: string;
           }>();
           let aiIdCounter = 1;
 
@@ -1527,6 +1527,13 @@ export class PageManager {
             
             const isInteractive = isNativeInteractive || hasEvents;
 
+            let extractedType = '';
+            if (tagName === 'span' && isInteractive) {
+              const classParts = className.split(/__|_|-/).filter(p => p.length > 2);
+              const typeKeywords = ['checkbox', 'radio', 'button', 'icon', 'switch', 'toggle', 'select', 'menu', 'tab', 'dropdown', 'slider', 'input', 'text', 'link'];
+              extractedType = classParts.find(p => typeKeywords.some(keyword => p.toLowerCase().includes(keyword))) || '';
+            }
+
             if (isStructural && !text && !hasEvents) return;
 
             const svgElement = elItem.querySelector('svg');
@@ -1551,6 +1558,7 @@ export class PageManager {
               svg,
               path,
               iconName,
+              extractedType,
             });
           });
 
@@ -1572,7 +1580,8 @@ export class PageManager {
             if (isFiltered && info) {
               const parts: string[] = [];
               if (info.isInteractive) {
-                parts.push(`**交互组件[${info.tag}]**`);
+                const tagWithExtractedType = info.extractedType ? `${info.tag}-${info.extractedType}` : info.tag;
+                parts.push(`**交互组件[${tagWithExtractedType}]**`);
               } else {
                 parts.push(`[${info.tag}]`);
               }
