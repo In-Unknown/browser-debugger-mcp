@@ -68,7 +68,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'simulate_action',
-    description: '施真机鼠标键盘之动于元素。💡强烈建议：请查看 inspect_element 生成的 Markdown 文件，提取其中的 `[data-ai-id="xxx"]` 作为 selector 传入，这将保证 100% 的点击准确率。💡试交互时（如钮不响、框不开），勿用JS点击，必用此器以效真动。拖拽时依次用pressDown、moveTo、release。',
+    description: '施真机鼠标键盘之动于元素。💡强烈建议：请查看 inspect_element 生成的 Markdown 文件，提取其中的 `[aid="xxx"]` 作为 selector 传入，这将保证 100% 的点击准确率。💡试交互时（如钮不响、框不开），勿用JS点击，必用此器以效真动。拖拽时依次用pressDown、moveTo、release。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -213,7 +213,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'inspect_element',
-    description: '检视指定DOM元素之HTML、边框、CSS。💡调样式、隐形元素或重叠层时，勿臆测。用此器以验实尺寸（边框）及CSS盒模型属性，以诊其症。💡当 format 选为 markdown 时，系统会为每个可见元素注入全局唯一的 data-ai-id 属性。这是后续执行 simulate_action 最可靠的抓手。💡提示：对 body 元素使用 format="markdown" 可方便查看整个页面的所有可见元素及唯一选择器。',
+    description: '检视指定DOM元素之HTML、边框、CSS。💡调样式、隐形元素或重叠层时，勿臆测。用此器以验实尺寸（边框）及CSS盒模型属性，以诊其症。💡当 format 选为 markdown 时，系统会为每个可见元素注入全局唯一的 aid 属性。这是后续执行 simulate_action 最可靠的抓手。💡提示：对 body 元素使用 format="markdown" 可方便查看整个页面的所有可见元素及唯一选择器。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -231,7 +231,7 @@ const TOOLS: Tool[] = [
         },
         detailed: {
           type: 'boolean',
-          description: '仅在format为markdown时有效。true（默认）使用缩进+换行的易读格式；false使用紧凑的括号格式，无缩进换行。💡紧凑格式语法：\n- 元素定义：`[tag]|[data-ai-id="a1"]|htmlId="originalId"|type="button"|t:文本|ph:占位符`，用|分隔属性\n- 属性说明：[tag]标签名，**交互组件[tag]**表示可交互元素（加粗强调），[data-ai-id="a1"]AI唯一选择器（后续simulate_action用），htmlId原始HTML ID，type元素类型，t:文本内容，ph:输入框占位符，图标:name表示data-icon属性值\n- 层级结构：`{子元素1,子元素2}`用{}包裹子元素，用,分隔\n- 交互标记：`{~子元素}`中的~表示**父元素**可交互\n- SVG图标：包含完整SVG内容（不截断），可识别图标类型'
+          description: '仅在format为markdown时有效。true（默认）使用缩进+换行的易读格式；false使用紧凑的括号格式，无缩进换行。💡紧凑格式语法：\n- 元素定义：`[tag]|[aid="a1"]|htmlId="originalId"|type="button"|t:文本|ph:占位符`，用|分隔属性\n- 属性说明：[tag]标签名，**交互组件[tag]**表示可交互元素（加粗强调），[aid="a1"]AI唯一选择器（后续simulate_action用），htmlId原始HTML ID，type元素类型，t:文本内容，ph:输入框占位符，图标:name表示data-icon属性值\n- 层级结构：`{子元素1,子元素2}`用{}包裹子元素，用,分隔\n- 交互标记：`{~子元素}`中的~表示**父元素**可交互\n- SVG图标：包含完整SVG内容（不截断），可识别图标类型'
         },
         includeScreenshot: {
           type: 'boolean',

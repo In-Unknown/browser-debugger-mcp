@@ -1437,7 +1437,7 @@ export class PageManager {
                              elItem.getAttribute('data-icon') || '';
 
             const uniqueAiId = `a${aiIdCounter++}`;
-            elItem.setAttribute('data-ai-id', uniqueAiId);
+            elItem.setAttribute('aid', uniqueAiId);
 
             filteredMap.set(elItem, { 
               tag:         tagName, 
@@ -1445,7 +1445,7 @@ export class PageManager {
               type:        (elItem as any).type        || '', 
               text:        text                        || '', 
               placeholder: (elItem as any).placeholder || '', 
-              selector:    `[id="${uniqueAiId}"]`, 
+              selector:    `[aid="${uniqueAiId}"]`, 
               isInteractive, 
               svg,
               path,
