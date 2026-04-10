@@ -150,32 +150,6 @@ const TOOLS: Tool[] = [
     }
   },
   {
-    name: 'execute_js',
-    description: '于页上执行JS。要诀：欲返对象，必以括弧包之：({ a: 1 })。切勿写裸{ a: 1 }，此致语法错。',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        pageId: {
-          type: 'string',
-          description: '欲执行JS之页ID'
-        },
-        script: {
-          type: 'string',
-          description: '欲执行之JS代码'
-        },
-        includeScreenshot: {
-          type: 'boolean',
-          description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。'
-        },
-        suggestion: {
-          type: 'string',
-          description: '若器屡败、晦涩、体验差，请报之'
-        }
-      },
-      required: ['pageId', 'script']
-    }
-  },
-  {
     name: 'close_page',
     description: '闭指定之页或闭全器（用"all"）。用"all"则全关并存持久之据。事讫用尽，宜罢诸简。',
     inputSchema: {
@@ -208,13 +182,12 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'console_execute',
-    description: '于CDP控台环境中执行JS。存上下文，变量持久，支持顶层await（如Chrome控台）。环境无则自建。',
+    description: '于CDP控台环境中执行JS。存上下文，变量持久，支持顶层await（如Chrome控台）。',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: { type: 'string', description: '页ID' },
         code: { type: 'string', description: '欲执行之JS代码' },
-        resetContext: { type: 'boolean', description: '若真，则毁旧环境新建之。默认：否' },
         suggestion: {
           type: 'string',
           description: '若器屡败、晦涩、体验差，请报之'
@@ -262,7 +235,11 @@ const TOOLS: Tool[] = [
         },
         includeScreenshot: {
           type: 'boolean',
-          description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。'
+          description: '⚠️切慎：除非用户明令，否则勿设为true。此返base64编码之PNG图，耗token极巨。AI模型难以用之或析之。仅用户强求或试测必需时用之。默认：false（力荐）。截图范围是选择的控件，不是整个页面。'
+        },
+        screenshotScale: {
+          type: 'number',
+          description: '截图分辨率缩放比例。默认：1（原始分辨率）。值小于1会降低分辨率以减少token消耗，例如：0.5表示50%分辨率。'
         },
         suggestion: {
           type: 'string',
@@ -385,28 +362,6 @@ async function main() {
           }
         }
 
-        case 'execute_js': {
-          const { pageId, script, includeScreenshot, suggestion } = args as { pageId: string; script: string; includeScreenshot?: boolean; suggestion?: string };
-          const startTime = Date.now();
-          try {
-            const result = await pageManager.executeJs(pageId, script, { includeScreenshot });
-            const executionTime = Date.now() - startTime;
-            statsManager.recordCall('execute_js', true, executionTime, suggestion);
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(result, null, 2)
-                }
-              ]
-            };
-          } catch (error) {
-            const executionTime = Date.now() - startTime;
-            statsManager.recordCall('execute_js', false, executionTime, suggestion);
-            throw error;
-          }
-        }
-
         case 'close_page': {
           const { pageId, suggestion } = args as { pageId: string; suggestion?: string };
           const startTime = Date.now();
@@ -473,15 +428,14 @@ async function main() {
         }
 
         case 'console_execute': {
-          const { pageId, code, resetContext, suggestion } = args as { 
+          const { pageId, code, suggestion } = args as { 
             pageId: string; 
-            code: string; 
-            resetContext?: boolean;
+            code: string;
             suggestion?: string 
           };
           const startTime = Date.now();
           try {
-            const result = await pageManager.consoleExecute(pageId, code, { resetContext }); 
+            const result = await pageManager.consoleExecute(pageId, code); 
             const executionTime = Date.now() - startTime;
             statsManager.recordCall('console_execute', true, executionTime, suggestion);
             return { 
@@ -512,17 +466,19 @@ async function main() {
         }
 
         case 'inspect_element': {
-          const { pageId, selector, stylesToGet, format, detailed = true, suggestion } = args as { 
+          const { pageId, selector, stylesToGet, format, detailed = true, includeScreenshot, screenshotScale, suggestion } = args as { 
             pageId: string; 
             selector: string; 
             stylesToGet?: string[];
             format?: 'json' | 'markdown';
             detailed?: boolean;
+            includeScreenshot?: boolean;
+            screenshotScale?: number;
             suggestion?: string 
           };
           const startTime = Date.now();
           try {
-            const result = await pageManager.inspectElement(pageId, selector, stylesToGet, format, detailed); 
+            const result = await pageManager.inspectElement(pageId, selector, stylesToGet, format, detailed, { includeScreenshot, screenshotScale }); 
             const executionTime = Date.now() - startTime;
             statsManager.recordCall('inspect_element', true, executionTime, suggestion);
             return { content:[{ type: 'text', text: JSON.stringify(result, null, 2) }] };

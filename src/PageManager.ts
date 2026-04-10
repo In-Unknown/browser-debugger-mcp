@@ -3,6 +3,7 @@ import { Page, Browser, BrowserContext, CDPSession } from 'playwright';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
 
 interface PageInfo {
   page: Page;
@@ -308,6 +309,23 @@ export class PageManager {
     await this.initEdgePromise;
   }
 
+  private async initPageEnvironment(id: string, page: Page) {
+    try {
+      const environmentId = `console_${id}`;
+      if (!this.consoleEnvironments.has(environmentId)) {
+        const client = await page.context().newCDPSession(page);
+        this.consoleEnvironments.set(environmentId, {
+          page: page,
+          client,
+          history: [],
+          createdAt: Date.now()
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to create console environment for page ${id}:`, err);
+    }
+  }
+
   private setupContextListeners(context: BrowserContext, browserType: 'chrome' | 'edge') {
     const registerPage = (page: Page) => {
       const url = page.url();
@@ -324,8 +342,13 @@ export class PageManager {
       const id = this.generateId();
       this.pages.set(id, { page, url, openedAt: Date.now(), browserType });
 
+      // Auto-create console environment for the page (lives and dies with the page)
+      this.initPageEnvironment(id, page);
+
       page.on('close', () => {
         this.pages.delete(id);
+        // Clean up console environment to prevent memory leak
+        this.consoleEnvironments.delete(`console_${id}`);
       });
 
       page.on('framenavigated', (frame) => {
@@ -661,6 +684,9 @@ export class PageManager {
     performanceMetrics.domContentLoaded = domContentLoadedTime;
     performanceMetrics.loadComplete = loadCompleteTime;
 
+    // Auto-create console environment for the page (lives and dies with the page)
+    await this.initPageEnvironment(id, page);
+
     // Update the page URL in our registered entry FIRST, before checking for duplicates
     const pageInfo = this.pages.get(id);
     if (pageInfo) {
@@ -738,112 +764,6 @@ export class PageManager {
     return statusTexts[status] || 'Unknown';
   }
 
-  async executeJs(pageId: string, script: string, options: { includeScreenshot?: boolean } = {}): Promise<{ 
-    success: boolean; 
-    result?: any; 
-    error?: string;
-    executionTime: number;
-    context?: {
-      pageTitle?: string;
-      pageUrl?: string;
-      timestamp: number;
-      scriptLength: number;
-      scriptType: 'expression' | 'statement' | 'function' | 'unknown';
-    };
-    screenshot?: string;
-  }> {
-    const pageInfo = this.pages.get(pageId);
-    if (!pageInfo) {
-      return {
-        success: false,
-        error: `Page with id ${pageId} not found`,
-        executionTime: 0,
-        context: {
-          timestamp: Date.now(),
-          scriptLength: script.length,
-          scriptType: 'unknown'
-        }
-      };
-    }
-
-    const { includeScreenshot = false } = options;
-    const startTime = Date.now();
-    let result: any;
-    let error: string | undefined;
-
-    const scriptType = this.detectScriptType(script);
-
-    try {
-      // Ensure execution context is ready before evaluating
-      await this.ensureExecutionContextReady(pageInfo.page);
-      result = await pageInfo.page.evaluate(script);
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    }
-
-    const executionTime = Date.now() - startTime;
-
-    let pageTitle: string | undefined;
-    let pageUrl: string | undefined;
-    let screenshot: string | undefined;
-
-    try {
-      pageTitle = await pageInfo.page.title();
-      pageUrl = pageInfo.page.url();
-    } catch (err) {
-      console.error('Failed to get page context:', err);
-    }
-
-    if (includeScreenshot && result !== undefined) {
-      try {
-        const screenshotBuffer = await pageInfo.page.screenshot({ 
-          type: 'png',
-          fullPage: false 
-        });
-        screenshot = screenshotBuffer.toString('base64');
-      } catch (err) {
-        console.error('Failed to take screenshot:', err);
-      }
-    }
-
-    return {
-      success: error === undefined,
-      result,
-      error,
-      executionTime,
-      context: {
-        pageTitle,
-        pageUrl,
-        timestamp: Date.now(),
-        scriptLength: script.length,
-        scriptType
-      },
-      screenshot
-    };
-  }
-
-  private detectScriptType(script: string): 'expression' | 'statement' | 'function' | 'unknown' {
-    const trimmed = script.trim();
-    
-    if (trimmed.startsWith('function ') || trimmed.includes('=>')) {
-      return 'function';
-    }
-    
-    if (trimmed.startsWith('const ') || trimmed.startsWith('let ') || 
-        trimmed.startsWith('var ') || trimmed.startsWith('if ') || 
-        trimmed.startsWith('for ') || trimmed.startsWith('while ') ||
-        trimmed.startsWith('return ') || trimmed.startsWith('try ') ||
-        trimmed.startsWith('{') || trimmed.endsWith('}')) {
-      return 'statement';
-    }
-    
-    if (trimmed.includes('=') && !trimmed.includes('==') && !trimmed.includes('===')) {
-      return 'statement';
-    }
-    
-    return 'expression';
-  }
-
   async closePage(pageId: string): Promise<{ success: boolean; message: string; id?: string }> {
     const pageInfo = this.pages.get(pageId);
     if (!pageInfo) {
@@ -851,12 +771,6 @@ export class PageManager {
         success: false,
         message: `Page with id ${pageId} not found`
       };
-    }
-
-    try {
-      await this.withTimeout(this.destroyConsoleEnvironment(pageId), 5000, 'Destroy console environment');
-    } catch (error) {
-      console.error(`Failed to destroy console environment for ${pageId}:`, error);
     }
 
     try {
@@ -1082,8 +996,6 @@ export class PageManager {
     for (const id of pageIds) {
       const pageInfo = this.pages.get(id);
       if (pageInfo) {
-        await this.destroyConsoleEnvironment(id);
-
         try {
           await pageInfo.page.close();
           this.pages.delete(id);
@@ -1109,43 +1021,19 @@ export class PageManager {
 
   async consoleExecute(
     pageId: string,
-    code: string,
-    options: { resetContext?: boolean } = {}
+    code: string
   ): Promise<ConsoleExecuteResult> {
-    const { resetContext = false } = options;
     const environmentId = `console_${pageId}`;
-    
+
+    const consoleEnv = this.consoleEnvironments.get(environmentId);
+    if (!consoleEnv) {
+      return { success: false, error: `Console environment not found for page ${pageId}`, executionTime: 0 };
+    }
+
     const pageInfo = this.pages.get(pageId);
     if (!pageInfo) {
       return { success: false, error: `Page with id ${pageId} not found`, executionTime: 0 };
     }
-
-    // Ensure execution context is ready before executing console code
-    try {
-      await this.ensureExecutionContextReady(pageInfo.page);
-    } catch (err) {
-      return { success: false, error: `Execution context not ready: ${err instanceof Error ? err.message : String(err)}`, executionTime: 0 };
-    }
-
-    if (resetContext && this.consoleEnvironments.has(environmentId)) {
-      await this.destroyConsoleEnvironment(pageId);
-    }
-
-    if (!this.consoleEnvironments.has(environmentId)) {
-      try {
-        const client = await pageInfo.page.context().newCDPSession(pageInfo.page);
-        this.consoleEnvironments.set(environmentId, {
-          page: pageInfo.page,
-          client,
-          history:[],
-          createdAt: Date.now()
-        });
-      } catch (err) {
-        return { success: false, error: `Failed to init console CDP session: ${err instanceof Error ? err.message : String(err)}`, executionTime: 0 };
-      }
-    }
-
-    const consoleEnv = this.consoleEnvironments.get(environmentId)!;
     const startTime = Date.now();
     let result: any;
     let error: string | undefined;
@@ -1385,31 +1273,11 @@ export class PageManager {
     return { success: true, history: consoleEnv.history };
   }
 
-  async destroyConsoleEnvironment(pageId: string): Promise<{ success: boolean; message: string }> {
-    const environmentId = `console_${pageId}`;
-    const consoleEnv = this.consoleEnvironments.get(environmentId);
-    
-    if (consoleEnv) {
-      try {
-        await consoleEnv.client.detach();
-      } catch (e) {
-        console.error(`Failed to detach CDP session for ${pageId}:`, e);
-      }
-      this.consoleEnvironments.delete(environmentId);
-      return { success: true, message: `Console environment destroyed for page ${pageId}` };
-    }
-    
-    // Console environment not found - this is not an error, just informational
-    // The environment may have never been created or was already destroyed
-    return { 
-      success: true, 
-      message: `No active console environment found for page ${pageId}. Nothing to destroy.` 
-    };
-  }
-
-  async inspectElement(pageId: string, selector: string, stylesToGet?: string[], format: 'json' | 'markdown' = 'json', detailed: boolean = true): Promise<any> {
+  async inspectElement(pageId: string, selector: string, stylesToGet?: string[], format: 'json' | 'markdown' = 'json', detailed: boolean = true, options: { includeScreenshot?: boolean; screenshotScale?: number } = {}): Promise<any> {
     const pageInfo = this.pages.get(pageId);
     if (!pageInfo) return { success: false, error: `Page with id ${pageId} not found` };
+
+    const { includeScreenshot = false, screenshotScale = 1 } = options;
 
     try {
       // Ensure execution context is ready before inspecting elements
@@ -1472,6 +1340,30 @@ export class PageManager {
         });
         return result;
       }, stylesToGet);
+
+      // Take screenshot of the selected element if requested
+      let screenshot: string | undefined;
+      if (includeScreenshot && isVisible) {
+        try {
+          let screenshotBuffer = await element.screenshot({ 
+            type: 'png'
+          });
+
+          // Apply scaling if needed (scale < 1 to reduce resolution)
+          if (screenshotScale < 1) {
+            const metadata = await sharp(screenshotBuffer).metadata();
+            const newWidth = Math.floor(metadata.width! * screenshotScale);
+            const newHeight = Math.floor(metadata.height! * screenshotScale);
+            screenshotBuffer = await sharp(screenshotBuffer)
+              .resize(newWidth, newHeight)
+              .toBuffer();
+          }
+
+          screenshot = screenshotBuffer.toString('base64');
+        } catch (err) {
+          console.error('Failed to take screenshot:', err);
+        }
+      }
 
       // If markdown format is requested, convert the HTML to structured markdown
       if (format === 'markdown') {
@@ -1700,7 +1592,8 @@ export class PageManager {
           markdownFilePath,
           selector, 
           isVisible,
-          boundingBox: boundingBox || 'Element is not rendered or has no layout box (e.g. display: none)'
+          boundingBox: boundingBox || 'Element is not rendered or has no layout box (e.g. display: none)',
+          screenshot
         };
       }
 
@@ -1711,7 +1604,8 @@ export class PageManager {
         isVisible, 
         boundingBox: boundingBox || 'Element is not rendered or has no layout box (e.g. display: none)', 
         computedStyles, 
-        htmlPreview: html.length > 800 ? html.substring(0, 800) + '...\n<!-- truncated -->' : html 
+        htmlPreview: html.length > 800 ? html.substring(0, 800) + '...\n<!-- truncated -->' : html,
+        screenshot
       };
     } catch (err) { 
       return { success: false, error: err instanceof Error ? err.message : String(err) }; 
