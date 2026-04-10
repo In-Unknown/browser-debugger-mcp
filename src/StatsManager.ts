@@ -41,7 +41,7 @@ export class StatsManager {
   private callHistory: ToolCallRecord[] = [];
   private maxHistorySize = 1000;
   private autoSaveCounter = 0;
-  private autoSaveThreshold = 20;
+  private autoSaveThreshold = 1;
   private filePath: string;
   
   // Dynamic auto-save mechanism
@@ -49,9 +49,9 @@ export class StatsManager {
   private callStartTime: number = 0;
   private callCountInWindow: number = 0;
   private timeWindowMs: number = 10000; // 10 seconds time window
-  private adaptiveThreshold: number = 20;
+  private adaptiveThreshold: number = 1;
   private lastAutoSaveTime: number = 0;
-  private minAutoSaveIntervalMs: number = 5000; // Minimum 5 seconds between auto-saves
+  private minAutoSaveIntervalMs: number = 1000; // Minimum 1 second between auto-saves
   
   constructor(filePath?: string) {
     this.filePath = filePath || join(__dirname, '..', 'stats.json');
@@ -248,11 +248,11 @@ export class StatsManager {
       // - High frequency: increase threshold to reduce saves
       // - Low frequency: use lower threshold for more frequent saves
       if (callsPerSecond > 10) {
-        this.adaptiveThreshold = 50; // High frequency: save less often
+        this.adaptiveThreshold = 10; // High frequency: save less often
       } else if (callsPerSecond > 5) {
-        this.adaptiveThreshold = 30; // Medium frequency
+        this.adaptiveThreshold = 5; // Medium frequency
       } else {
-        this.adaptiveThreshold = 20; // Low frequency: save more often
+        this.adaptiveThreshold = 1; // Low frequency: save more often
       }
       
       // Reset counters for new window
